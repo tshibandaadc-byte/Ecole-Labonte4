@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>École La Bonté</title>
+<style>
+  :root {
+    --bleu: #1E3A5F;
+    --bleu-clair: #2C5282;
+    --or: #C89B3C;
+    --or-clair: #F0DFB8;
+    --vert: #2F6846;
+    --vert-clair: #E6F0EA;
+    --fond: #F7F5F0;
+    --carte: #FFFFFF;
+    --texte: #1870dabd;
+    --texte-doux: #5B6B7A;
+    --ligne: #E2E0D8;
+    --rouge: #B3452C;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fond: #14181D;
+      --carte: #1D232B;
+      --texte: #EDEEEC;
+      --texte-doux: #9CA7B0;
+      --ligne: #2C333B;
+      --or-clair: #3A331F;
+      --vert-clair: #16241C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fond: #14181D;
+    --carte: #1D232B;
+    --texte: #EDEEEC;
+    --texte-doux: #9CA7B0;
+    --ligne: #2C333B;
+    --or-clair: #3A331F;
+    --vert-clair: #16241C;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--fond);
+    color: var(--texte);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #app { max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; padding-bottom: 72px; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px; padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    background: var(--bleu); color: white; position: sticky; top: 0; z-index: 10;
+  }
+  .topbar .titre { font-size: 17px; font-weight: 600; flex: 1; }
+  .topbar .retour { background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 4px 8px; }
+
+  .ecran { padding: 20px 16px; animation: apparait .18s ease; }
+  @keyframes apparait { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .logo-bloc { text-align: center; margin: 40px 0 30px; }
+  .logo-cercle {
+    width: 84px; height: 84px; border-radius: 50%; background: var(--or);
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+    font-size: 34px; color: var(--bleu); font-weight: 700;
+  }
+  .logo-bloc h1 { font-size: 22px; margin: 0 0 4px; color: var(--bleu); font-weight: 700; }
+  .logo-bloc p { font-size: 14px; color: var(--texte-doux); margin: 0; font-style: italic; }
+
+  .champ { margin-bottom: 14px; }
+  .champ label { display: block; font-size: 13px; color: var(--texte-doux); margin-bottom: 6px; }
+  .champ input, .champ select, .champ textarea {
+    width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--ligne);
+    background: var(--carte); color: var(--texte); font-size: 15px; font-family: inherit;
+  }
+  .champ input:focus, .champ select:focus, .champ textarea:focus { outline: none; border-color: var(--bleu-clair); }
+  .erreur-champ { color: var(--rouge); font-size: 12px; margin-top: 4px; display: none; }
+
+  .bouton {
+    display: block; width: 100%; padding: 14px; border-radius: var(--radius); border: none;
+    background: var(--bleu); color: white; font-size: 15px; font-weight: 600; cursor: pointer;
+    text-align: center;
+  }
+  .bouton:active { transform: scale(0.98); }
+  .bouton.secondaire { background: var(--carte); color: var(--bleu); border: 1px solid var(--bleu); }
+  .bouton.or { background: var(--or); color: var(--bleu); }
+  .lien-texte { text-align: center; font-size: 13px; color: var(--bleu-clair); margin-top: 14px; cursor: pointer; }
+
+  .role-carte {
+    display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 10px;
+    background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .role-carte .emoji { font-size: 26px; }
+  .role-carte .nom { font-size: 15px; font-weight: 500; }
+
+  .carte {
+    background: var(--carte); border: 1px solid var(--ligne); border-radius: 12px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .carte .titre-carte { font-size: 12px; color: var(--texte-doux); margin-bottom: 6px; }
+  .carte .valeur-carte { font-size: 22px; font-weight: 600; }
+
+  .salutation { font-size: 19px; font-weight: 600; margin-bottom: 2px; }
+  .sous-salutation { font-size: 13px; color: var(--texte-doux); margin-bottom: 18px; }
+
+  .ligne-note {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0; border-bottom: 1px solid var(--ligne);
+  }
+  .ligne-note:last-child { border-bottom: none; }
+  .ligne-note .matiere { font-size: 14px; font-weight: 500; }
+  .ligne-note .coef { font-size: 11px; color: var(--texte-doux); }
+  .ligne-note .note { font-size: 16px; font-weight: 600; color: var(--vert); }
+  .ligne-note .note.faible { color: var(--rouge); }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.urgent { background: #F4E1DC; color: var(--rouge); }
+  .badge.academique { background: var(--vert-clair); color: var(--vert); }
+  .badge.evenement { background: var(--or-clair); color: #7A5A15; }
+
+  .communique-carte { margin-bottom: 10px; }
+  .communique-carte .haut { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .communique-carte .temps { font-size: 11px; color: var(--texte-doux); }
+  .communique-carte h3 { font-size: 15px; margin: 0 0 4px; }
+  .communique-carte p { font-size: 13px; color: var(--texte-doux); margin: 0; }
+
+  .navbar {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px;
+    display: flex; background: var(--carte); border-top: 1px solid var(--ligne);
+    padding-bottom: env(safe-area-inset-bottom, 0px); z-index: 20;
+  }
+  .navbar button {
+    flex: 1; border: none; background: none; padding: 10px 4px 8px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: var(--texte-doux); font-size: 10px; font-family: inherit;
+  }
+  .navbar button.actif { color: var(--bleu); }
+  .navbar .icone { font-size: 19px; }
+
+  .fil { display: flex; justify-content: space-between; font-size: 13px; color: var(--texte-doux); margin-bottom: 12px; }
+  .fil button { background: none; border: 1px solid var(--ligne); border-radius: 8px; padding: 6px 10px; color: var(--texte); font-size: 13px; cursor: pointer; }
+
+  .cours-ligne {
+    display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--ligne); align-items: center;
+  }
+  .cours-ligne:last-child { border-bottom: none; }
+  .cours-ligne .heure { font-size: 12px; color: var(--texte-doux); width: 78px; flex-shrink: 0; }
+  .cours-ligne .nom-cours { font-size: 14px; font-weight: 500; }
+  .cours-ligne .salle { font-size: 12px; color: var(--texte-doux); }
+
+  .frais-carte { position: relative; }
+  .frais-statut { position: absolute; top: 16px; right: 16px; font-size: 12px; font-weight: 600; }
+  .frais-statut.paye { color: var(--vert); }
+  .frais-statut.attente { color: var(--or); }
+
+  .msg-conversation {
+    display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--ligne); cursor: pointer;
+  }
+  .msg-conversation:last-child { border-bottom: none; }
+  .avatar {
+    width: 42px; height: 42px; border-radius: 50%; background: var(--vert-clair); color: var(--vert);
+    display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; flex-shrink: 0;
+  }
+  .msg-info { flex: 1; min-width: 0; }
+  .msg-info .nom { font-size: 14px; font-weight: 500; }
+  .msg-info .apercu { font-size: 12px; color: var(--texte-doux); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg-temps { font-size: 11px; color: var(--texte-doux); }
+
+  .bulle {
+    max-width: 75%; padding: 10px 13px; border-radius: 14px; font-size: 14px; margin-bottom: 8px;
+  }
+  .bulle.recu { background: var(--carte); border: 1px solid var(--ligne); align-self: flex-start; }
+  .bulle.envoye { background: var(--bleu); color: white; align-self: flex-end; }
+  .chat-zone { display: flex; flex-direction: column; padding: 4px 0 16px; }
+  .chat-saisie { display: flex; gap: 8px; position: sticky; bottom: 72px; background: var(--fond); padding: 8px 0; }
+  .chat-saisie input { flex: 1; }
+  .chat-saisie button { background: var(--bleu); color: white; border: none; border-radius: var(--radius); padding: 0 16px; font-size: 18px; }
+
+  .matricule-boite {
+    text-align: center; padding: 24px; background: var(--vert-clair); border-radius: 12px; margin: 20px 0;
+  }
+  .matricule-boite .num { font-size: 26px; font-weight: 700; color: var(--vert); letter-spacing: 1px; margin: 10px 0; }
+
+  h2.section-titre { font-size: 17px; margin: 4px 0 16px; }
+  .info-ligne { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; border-bottom: 1px solid var(--ligne); }
+  .info-ligne:last-child { border-bottom: none; }
+  .info-ligne .label { color: var(--texte-doux); }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+</style>
+</head>
+<body>
+<h2 class="sr-only">Application mobile de gestion scolaire École La Bonté : connexion, tableau de bord par rôle, notes, frais, communiqués et messagerie.</h2>
+<div id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var DB_KEY = "labonte_db_v1";
+  function chargerDB() {
+    try {
+      var raw = localStorage.getItem(DB_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return donneesInitiales();
+  }
+  function sauverDB() {
+    try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+  }
+
+  function donneesInitiales() {
+    return {
+      eleves: [
+        {
+          id: 1, nom: "KABONGO", prenom: "Jean", matricule: "2026-0042",
+          classe: "2ème A", promo: "2026", dateNaissance: "2015-05-12",
+          tuteur: "M. Kabongo", tel: "+243 900 000 001",
+          moyenne: 14.5, rang: 5, totalClasse: 45,
+          notes: {
+            "Trimestre 1": [
+              { matiere: "Mathématiques", note: 16, coef: 4 },
+              { matiere: "Français", note: 14, coef: 4 },
+              { matiere: "Anglais", note: 12, coef: 2 },
+              { matiere: "SVT", note: 15, coef: 2 }
+            ]
+          },
+          emploiDuTemps: {
+            "Lundi": [
+              { heure: "08h-10h", matiere: "Mathématiques", salle: "Salle 12" },
+              { heure: "10h-12h", matiere: "Français", salle: "Salle 12" },
+              { heure: "14h-16h", matiere: "Anglais", salle: "Salle 08" },
+              { heure: "16h-18h", matiere: "SVT", salle: "Labo 1" }
+            ]
+          },
+          devoirs: [
+            { titre: "Maths : Exercice 5 p.42", limite: "28/09" },
+            { titre: "Français : Rédaction", limite: "30/09" }
+          ],
+          frais: [
+            { libelle: "Inscription", montant: 50000, paye: 50000, echeance: "01/09" },
+            { libelle: "Tranche 1", montant: 75000, paye: 50000, echeance: "30/09" },
+            { libelle: "Tranche 2", montant: 75000, paye: 0, echeance: "30/11" }
+          ]
+        }
+      ],
+      compteurMatricule: 42,
+      communiques: [
+        { titre: "Réunion des parents", contenu: "Une réunion générale des parents se tiendra ce samedi. Merci d'y assister.", categorie: "urgent", temps: "Il y a 2 heures" },
+        { titre: "Publication notes Trimestre 1", contenu: "Les notes du premier trimestre sont désormais disponibles dans l'application.", categorie: "academique", temps: "Hier" },
+        { titre: "Journée culturelle", contenu: "Une journée culturelle aura lieu le 5 octobre. Toutes les classes sont invitées.", categorie: "evenement", temps: "Il y a 3 jours" }
+      ],
+      conversations: [
+        { nom: "Prof. Mukendi", role: "Professeur", dernier: "Merci de rendre le devoir avant vendredi.", temps: "10:30",
+          messages: [
+            { de: "eux", texte: "Bonjour, n'oubliez pas de rendre le devoir." },
+            { de: "moi", texte: "Bien reçu, merci." },
+            { de: "eux", texte: "Merci de rendre le devoir avant vendredi." }
+          ]
+        },
+        { nom: "Secrétariat", role: "Assistant", dernier: "Votre reçu est prêt.", temps: "Hier",
+          messages: [
+            { de: "eux", texte: "Votre reçu de paiement est prêt à être récupéré." }
+          ]
+        }
+      ],
+      classes: [
+        { nom: "2ème A", effectif: 45, matiere: "Mathématiques" },
+        { nom: "1ère B", effectif: 38, matiere: "Mathématiques" }
+      ],
+      statsEcole: {
+        effectif: 458, classes: 12, promotions: 5,
+        recouvrement: 78, montantPercu: 2450000,
+        moyenneEcole: 13.8
+      },
+      paiementsDuJour: { nb: 8, total: 600000 },
+      inscriptionsEnAttente: 5,
+      nouvellesInscriptions: 12
+    };
+  }
+
+  var DB = chargerDB();
+
+  var etat = { ecran: "splash", role: null, conversationOuverte: null, periodeNotes: "Trimestre 1" };
+  var historique = [];
+
+  function aller(ecran, opts) {
+    historique.push(etat.ecran);
+    etat.ecran = ecran;
+    if (opts) for (var k in opts) etat[k] = opts[k];
+    rendre();
+    window.scrollTo(0,0);
+  }
+  function retour() {
+    if (historique.length) {
+      etat.ecran = historique.pop();
+      rendre();
+    }
+  }
+
+  function fmtFCFA(n) { return n.toLocaleString("fr-FR") + " FCFA"; }
+  function el(tag, attrs, html) {
+    var s = "<" + tag;
+    for (var k in (attrs||{})) s += " " + k + '="' + attrs[k] + '"';
+    s += ">" + (html||"") + "</" + tag + ">";
+    return s;
+  }
+  function eleveActuel() { return DB.eleves[0]; }
+
+  function ecranSplash() {
+    setTimeout(function(){ aller("onboarding"); }, 900);
+    return el("div", {class:"ecran"},
+      el("div", {class:"logo-bloc"},
+        el("div", {class:"logo-cercle"}, "LB") +
+        el("h1", {}, "École La Bonté") +
+        el("p", {}, "L'excellence à portée de main")
+      )
+    );
+  }
+
+  function ecranOnboarding() {
+    return el("div", {class:"ecran"},
+      el("div", {class:"logo-bloc"},
+        '<div style="font-size:48px; margin-bottom:16px">📚</div>' +
+        el("h1", {style:"font-size:19px"}, "Bienvenue à La Bonté") +
+        el("p", {}, "Consultez notes, frais et communiqués en un seul endroit.")
+      ) +
+      '<button class="bouton" onclick="AppLB.aller(\'login\')">Commencer</button>'
+    );
+  }
+
+  function ecranLogin() {
+    return el("div", {class:"ecran"},
+      el("div", {class:"logo-bloc", style:"margin-top:20px"},
+        el("h1", {}, "École La Bonté")
+      ) +
+      '<div class="champ"><label>Téléphone ou matricule</label><input id="ch-tel" placeholder="2026-0042" /></div>' +
+      '<div class="champ"><label>Mot de passe</label><input id="ch-pwd" type="password" placeholder="••••••••" />' +
+        '<div class="erreur-champ" id="err-login">Veuillez remplir les deux champs.</div></div>' +
+      '<button class="bouton" onclick="AppLB.connecter()">Se connecter</button>' +
+      '<div class="lien-texte" onclick="AppLB.aller(\'role\')">Pas de compte ? S\'inscrire</div>'
+    );
+  }
+
+  function ecranRole() {
+    var roles = [
+      {id:"eleve", emoji:"🎓", nom:"Élève"},
+      {id:"parent", emoji:"👪", nom:"Parent"},
+      {id:"professeur", emoji:"👨‍🏫", nom:"Professeur"},
+      {id:"assistant", emoji:"📋", nom:"Assistant(e)"},
+      {id:"direction", emoji:"🏛️", nom:"Direction / Promoteur"}
+    ];
+    var html = '<h2 class="section-titre">Je suis...</h2>';
+    roles.forEach(function(r){
+      html += el("div", {class:"role-carte", onclick:"AppLB.choisirRole('"+r.id+"')"},
+        el("span",{class:"emoji"}, r.emoji) + el("span",{class:"nom"}, r.nom));
+    });
+    return el("div", {class:"ecran"}, html);
+  }
+
+  function ecranInscription() {
+    return el("div", {class:"ecran"},
+      '<h2 class="section-titre">Inscription élève</h2>' +
+      '<div class="champ"><label>Nom</label><input id="i-nom" /></div>' +
+      '<div class="champ"><label>Prénom</label><input id="i-prenom" /></div>' +
+      '<div class="champ"><label>Date de naissance</label><input id="i-date" type="date" /></div>' +
+      '<div class="champ"><label>Lieu de naissance</label><input id="i-lieu" /></div>' +
+      '<div class="champ"><label>Sexe</label><select id="i-sexe"><option value="M">Masculin</option><option value="F">Féminin</option></select></div>' +
+      '<div class="champ"><label>Classe souhaitée</label><select id="i-classe">' +
+        '<option>1ère</option><option>2ème</option><option>3ème</option><option>4ème</option><option>5ème</option><option>6ème</option>' +
+      '</select></div>' +
+      '<div class="champ"><label>Nom du tuteur</label><input id="i-tuteur" /></div>' +
+      '<div class="champ"><label>Téléphone du tuteur</label><input id="i-tel" />' +
+        '<div class="erreur-champ" id="err-inscription">Merci de remplir le nom, le prénom et la date de naissance.</div></div>' +
+      '<button class="bouton" onclick="AppLB.valideInscription()">Valider l\'inscription</button>'
+    );
+  }
+
+  function ecranMatricule() {
+    var e = eleveActuel();
+    return el("div", {class:"ecran"},
+      '<div style="text-align:center; font-size:40px; margin-top:20px">✅</div>' +
+      '<h2 class="section-titre" style="text-align:center">Inscription réussie</h2>' +
+      '<div class="matricule-boite">' +
+        '<div style="font-size:13px; color:var(--texte-doux)">Votre numéro matricule</div>' +
+        el("div", {class:"num"}, e.matricule) +
+        '<div style="font-size:12px; color:var(--texte-doux)">Conservez ce numéro à vie.</div>' +
+      '</div>' +
+      '<button class="bouton" onclick="AppLB.aller(\'dashboard\', {role:\'eleve\'})">Continuer</button>'
+    );
+  }
+
+  function ecranDashboardEleve() {
+    var e = eleveActuel();
+    var devoirsHtml = e.devoirs.map(function(d){
+      return "• " + d.titre + " <span style='color:var(--texte-doux); font-size:12px'>(" + d.limite + ")</span><br/>";
+    }).join("");
+    var prochainsFrais = e.frais.find(function(f){ return f.montant - f.paye > 0; });
+    return el("div", {class:"ecran"},
+      el("div", {class:"salutation"}, "Bonjour, " + e.prenom + " 👋") +
+      el("div", {class:"sous-salutation"}, "Matricule : " + e.matricule) +
+
+      el("div", {class:"carte", onclick:"AppLB.aller('notes')"},
+        el("div",{class:"titre-carte"},"📊 Moyenne générale") +
+        el("div",{class:"valeur-carte"}, e.moyenne + " / 20") +
+        '<div style="font-size:13px; color:var(--texte-doux)">Rang : ' + e.rang + 'ème / ' + e.totalClasse + '</div>'
+      ) +
+      el("div", {class:"carte", onclick:"AppLB.aller('emploi')"},
+        el("div",{class:"titre-carte"},"📅 Prochain cours") +
+        '<div style="font-size:15px; font-weight:500">Mathématiques · 08h-10h · Salle 12</div>'
+      ) +
+      el("div", {class:"carte"},
+        el("div",{class:"titre-carte"},"📝 Devoirs à rendre") +
+        '<div style="font-size:14px; line-height:1.6">' + devoirsHtml + '</div>'
+      ) +
+      el("div", {class:"carte", onclick:"AppLB.aller('frais')"},
+        el("div",{class:"titre-carte"},"💰 Frais scolaires") +
+        (prochainsFrais ?
+          '<div style="font-size:18px; font-weight:600">' + fmtFCFA(prochainsFrais.montant - prochainsFrais.paye) + ' restant</div><div style="font-size:12px; color:var(--texte-doux)">Échéance : ' + prochainsFrais.echeance + '</div>'
+          : '<div style="font-size:15px; color:var(--vert)">Tout est payé ✓</div>')
+      ) +
+      barreNav("eleve")
+    );
+  }
+
+  function ecranNotes() {
+    var e = eleveActuel();
+    var notes = e.notes[etat.periodeNotes] || [];
+    var lignes = notes.map(function(n){
+      var faible = n.note < 10 ? " faible" : "";
+      return el("div", {class:"ligne-note"},
+        '<div><div class="matiere">' + n.matiere + '</div><div class="coef">Coef : ' + n.coef + '</div></div>' +
+        '<div class="note' + faible + '">' + n.note + '/20</div>'
+      );
+    }).join("");
+    return el("div", {},
+      topbar("Mes notes") +
+      el("div", {class:"ecran"},
+        '<div class="fil"><span>' + etat.periodeNotes + '</span><button onclick="AppLB.aller(\'dashboard\')">Fermer</button></div>' +
+        el("div", {class:"carte"}, lignes || '<div style="color:var(--texte-doux); font-size:14px">Aucune note pour le moment.</div>') +
+        '<button class="bouton secondaire" style="margin-top:10px">📄 Télécharger le bulletin PDF</button>'
+      )
+    );
+  }
+
+  function ecranEmploi() {
+    var e = eleveActuel();
+    var jour = "Lundi";
+    var cours = e.emploiDuTemps[jour] || [];
+    var lignes = cours.map(function(c){
+      return el("div", {class:"cours-ligne"},
+        '<div class="heure">' + c.heure + '</div>' +
+        '<div><div class="nom-cours">' + c.matiere + '</div><div class="salle">' + c.salle + '</div></div>'
+      );
+    }).join("");
+    return el("div", {},
+      topbar("Emploi du temps") +
+      el("div", {class:"ecran"},
+        '<div class="fil"><span>' + jour + ' 24 septembre</span></div>' +
+        el("div", {class:"carte"}, lignes || '<div style="color:var(--texte-doux); font-size:14px">Aucun cours ce jour.</div>')
+      )
+    );
+  }
+
+  function ecranFrais() {
+    var e = eleveActuel();
+    var lignes = e.frais.map(function(f){
+      var reste = f.montant - f.paye;
+      var statutHtml = reste <= 0
+        ? '<span class="frais-statut paye">✅ Payé</span>'
+        : (f.paye > 0 ? '<span class="frais-statut attente">⏳ Reste ' + fmtFCFA(reste) + '</span>' : '<span class="frais-statut attente">⏳ À venir</span>');
+      return el("div", {class:"carte frais-carte"},
+        statutHtml +
+        '<div style="font-weight:500; font-size:15px">' + f.libelle + '</div>' +
+        '<div style="font-size:15px; color:var(--texte-doux)">' + fmtFCFA(f.montant) + '</div>' +
+        '<div style="font-size:12px; color:var(--texte-doux)">Échéance : ' + f.echeance + '</div>'
+      );
+    }).join("");
+    return el("div", {},
+      topbar("Frais et paiements") +
+      el("div", {class:"ecran"},
+        lignes +
+        '<button class="bouton or" style="margin-top:10px" onclick="AppLB.simulerPaiement()">💳 Payer maintenant</button>'
+      )
+    );
+  }
+
+  function ecranCommuniques() {
+    var lignes = DB.communiques.map(function(c){
+      var badgeLabel = c.categorie === "urgent" ? "🔴 Urgent" : c.categorie === "academique" ? "📢 Académique" : "🎉 Événement";
+      return el("div", {class:"carte communique-carte"},
+        '<div class="haut"><span class="badge ' + c.categorie + '">' + badgeLabel + '</span><span class="temps">' + c.temps + '</span></div>' +
+        '<h3>' + c.titre + '</h3><p>' + c.contenu + '</p>'
+      );
+    }).join("");
+    return el("div", {}, topbar("Communiqués") + el("div", {class:"ecran"}, lignes) + barreNav(etat.role));
+  }
+
+  function ecranMessagerie() {
+    var lignes = DB.conversations.map(function(c, i){
+      var initiales = c.nom.split(" ").map(function(w){return w[0];}).join("").slice(0,2);
+      return el("div", {class:"msg-conversation", onclick:"AppLB.ouvrirConversation(" + i + ")"},
+        el("div", {class:"avatar"}, initiales) +
+        '<div class="msg-info"><div class="nom">' + c.nom + '</div><div class="apercu">' + c.dernier + '</div></div>' +
+        '<div class="msg-temps">' + c.temps + '</div>'
+      );
+    }).join("");
+    return el("div", {}, topbar("Messagerie") + el("div", {class:"ecran"}, lignes) + barreNav(etat.role));
+  }
+
+  function ecranConversation() {
+    var c = DB.conversations[etat.conversationOuverte];
+    var bulles = c.messages.map(function(m){
+      return el("div", {class:"bulle " + (m.de === "moi" ? "envoye" : "recu")}, m.texte);
+    }).join("");
+    return el("div", {},
+      topbar(c.nom) +
+      el("div", {class:"ecran"},
+        el("div", {class:"chat-zone"}, bulles) +
+        '<div class="chat-saisie"><input id="msg-input" placeholder="Écrire un message..." /><button onclick="AppLB.envoyerMessage()">➤</button></div>'
+      )
+    );
+  }
+
+  function ecranProfil() {
+    var e = eleveActuel();
+    return el("div", {},
+      topbar("Mon profil") +
+      el("div", {class:"ecran"},
+        '<div style="text-align:center; margin-bottom:20px">' +
+          '<div class="avatar" style="width:72px; height:72px; font-size:24px; margin:0 auto 10px">' + e.prenom[0] + e.nom[0] + '</div>' +
+          '<div style="font-size:17px; font-weight:600">' + e.prenom + ' ' + e.nom + '</div>' +
+          '<div style="font-size:13px; color:var(--texte-doux)">Matricule : ' + e.matricule + ' · ' + e.classe + '</div>' +
+        '</div>' +
+        el("div", {class:"carte"},
+          '<div class="info-ligne"><span class="label">Né le</span><span>' + e.dateNaissance + '</span></div>' +
+          '<div class="info-ligne"><span class="label">Tuteur</span><span>' + e.tuteur + '</span></div>' +
+          '<div class="info-ligne"><span class="label">Téléphone</span><span>' + e.tel + '</span></div>'
+        ) +
+        '<button class="bouton secondaire" onclick="AppLB.deconnecter()">Se déconnecter</button>'
+      ) +
+      barreNav(etat.role)
+    );
+  }
+
+  function ecranDashboardProfesseur() {
+    var html = DB.classes.map(function(c){
+      return "• " + c.nom + " - " + c.matiere + " (" + c.effectif + " élèves)<br/>";
+    }).join("");
+    return el("div", {class:"ecran"},
+      el("div", {class:"salutation"}, "Bonjour, Prof. Mukendi") +
+      el("div", {class:"carte"}, el("div",{class:"titre-carte"},"📚 Mes classes") + '<div style="font-size:14px; line-height:1.7">' + html + '</div>') +
+      el("div", {class:"carte", onclick:"AppLB.aller('notes')"}, el("div",{class:"titre-carte"},"📝 Notes à saisir") + '<div style="font-size:14px">Interro Maths · 2ème A</div>') +
+      '<button class="bouton" style="margin-bottom:10px">✅ Faire l\'appel du jour</button>' +
+      barreNav("professeur")
+    );
+  }
+
+  function ecranDashboardAssistant() {
+    return el("div", {class:"ecran"},
+      el("div", {class:"salutation"}, "Secrétariat") +
+      el("div", {class:"carte"},
+        el("div",{class:"titre-carte"},"👥 Inscriptions") +
+        '<div style="font-size:14px">Nouveaux : ' + DB.nouvellesInscriptions + ' · En attente : ' + DB.inscriptionsEnAttente + '</div>'
+      ) +
+      el("div", {class:"carte"},
+        el("div",{class:"titre-carte"},"💰 Paiements du jour") +
+        '<div style="font-size:18px; font-weight:600">' + DB.paiementsDuJour.nb + ' encaissements = ' + fmtFCFA(DB.paiementsDuJour.total) + '</div>'
+      ) +
+      '<button class="bouton" style="margin-bottom:10px" onclick="AppLB.aller(\'communiques\')">📢 Publier un communiqué</button>' +
+      barreNav("assistant")
+    );
+  }
+
+  function ecranDashboardDirection() {
+    return el("div", {class:"ecran"},
+      el("div", {class:"salutation"}, "Direction") +
+      el("div", {class:"carte"},
+        el("div",{class:"titre-carte"},"👥 Effectif") +
+        el("div",{class:"valeur-carte"}, DB.statsEcole.effectif + " élèves") +
+        '<div style="font-size:13px; color:var(--texte-doux)">' + DB.statsEcole.classes + ' classes · ' + DB.statsEcole.promotions + ' promotions</div>'
+      ) +
+      el("div", {class:"carte"},
+        el("div",{class:"titre-carte"},"💰 Recouvrement") +
+        el("div",{class:"valeur-carte"}, DB.statsEcole.recouvrement + "%") +
+        '<div style="font-size:13px; color:var(--texte-doux)">' + fmtFCFA(DB.statsEcole.montantPercu) + ' perçus</div>'
+      ) +
+      el("div", {class:"carte"},
+        el("div",{class:"titre-carte"},"📊 Moyenne école") +
+        el("div",{class:"valeur-carte"}, DB.statsEcole.moyenneEcole + "/20")
+      ) +
+      '<button class="bouton" style="margin-bottom:10px" onclick="AppLB.aller(\'communiques\')">📢 Communiqué officiel</button>' +
+      barreNav("direction")
+    );
+  }
+
+  function topbar(titre) {
+    return el("div", {class:"topbar"},
+      '<button class="retour" onclick="AppLB.retour()">‹</button>' +
+      '<div class="titre">' + titre + '</div>'
+    );
+  }
+
+  function barreNav(role) {
+    var onglets;
+    if (role === "professeur") {
+      onglets = [
+        {id:"dashboard", icone:"🏠", label:"Accueil"},
+        {id:"notes", icone:"📝", label:"Notes"},
+        {id:"messagerie", icone:"💬", label:"Messages"},
+        {id:"profil", icone:"👤", label:"Profil"}
+      ];
+    } else if (role === "assistant" || role === "direction") {
+      onglets = [
+        {id:"dashboard", icone:"🏠", label:"Accueil"},
+        {id:"communiques", icone:"📢", label:"Communiqués"},
+        {id:"messagerie", icone:"💬", label:"Messages"},
+        {id:"profil", icone:"👤", label:"Profil"}
+      ];
+    } else {
+      onglets = [
+        {id:"dashboard", icone:"🏠", label:"Accueil"},
+        {id:"notes", icone:"📚", label:"Notes"},
+        {id:"messagerie", icone:"💬", label:"Messages"},
+        {id:"profil", icone:"⚙️", label:"Profil"}
+      ];
+    }
+    var html = onglets.map(function(o){
+      var actif = etat.ecran === o.id ? " actif" : "";
+      return '<button class="' + actif.trim() + '" onclick="AppLB.allerDirect(\'' + o.id + '\')"><span class="icone">' + o.icone + '</span>' + o.label + '</button>';
+    }).join("");
+    return el("div", {class:"navbar"}, html);
+  }
+
+  function rendre() {
+    var app = document.getElementById("app");
+    var html = "";
+    switch (etat.ecran) {
+      case "splash": html = ecranSplash(); break;
+      case "onboarding": html = ecranOnboarding(); break;
+      case "login": html = ecranLogin(); break;
+      case "role": html = ecranRole(); break;
+      case "inscription": html = ecranInscription(); break;
+      case "matricule": html = ecranMatricule(); break;
+      case "dashboard":
+        if (etat.role === "professeur") html = ecranDashboardProfesseur();
+        else if (etat.role === "assistant") html = ecranDashboardAssistant();
+        else if (etat.role === "direction") html = ecranDashboardDirection();
+        else html = ecranDashboardEleve();
+        break;
+      case "notes": html = ecranNotes(); break;
+      case "emploi": html = ecranEmploi(); break;
+      case "frais": html = ecranFrais(); break;
+      case "communiques": html = ecranCommuniques(); break;
+      case "messagerie": html = ecranMessagerie(); break;
+      case "conversation": html = ecranConversation(); break;
+      case "profil": html = ecranProfil(); break;
+      default: html = ecranLogin();
+    }
+    app.innerHTML = html;
+  }
+
+  window.AppLB = {
+    aller: aller,
+    retour: retour,
+    allerDirect: function(ecran) { etat.ecran = ecran; rendre(); window.scrollTo(0,0); },
+    choisirRole: function(role) {
+      if (role === "eleve" || role === "parent") { aller("inscription", {role: role}); }
+      else { aller("dashboard", {role: role}); }
+    },
+    connecter: function() {
+      var tel = document.getElementById("ch-tel").value.trim();
+      var pwd = document.getElementById("ch-pwd").value.trim();
+      var err = document.getElementById("err-login");
+      if (!tel || !pwd) { err.style.display = "block"; return; }
+      err.style.display = "none";
+      aller("dashboard", {role: "eleve"});
+    },
+    valideInscription: function() {
+      var nom = document.getElementById("i-nom").value.trim();
+      var prenom = document.getElementById("i-prenom").value.trim();
+      var date = document.getElementById("i-date").value;
+      var err = document.getElementById("err-inscription");
+      if (!nom || !prenom || !date) { err.style.display = "block"; return; }
+      err.style.display = "none";
+
+      DB.compteurMatricule++;
+      var annee = new Date().getFullYear();
+      var matricule = annee + "-" + String(DB.compteurMatricule).padStart(4, "0");
+
+      var nouvel = {
+        id: DB.eleves.length + 1,
+        nom: nom.toUpperCase(), prenom: prenom, matricule: matricule,
+        classe: document.getElementById("i-classe").value, promo: String(annee),
+        dateNaissance: date, tuteur: document.getElementById("i-tuteur").value || "Non renseigné",
+        tel: document.getElementById("i-tel").value || "Non renseigné",
+        moyenne: 0, rang: 0, totalClasse: 0,
+        notes: {}, emploiDuTemps: {}, devoirs: [],
+        frais: [{ libelle: "Inscription", montant: 50000, paye: 0, echeance: "30 jours" }]
+      };
+      DB.eleves.unshift(nouvel);
+      sauverDB();
+      aller("matricule");
+    },
+    simulerPaiement: function() {
+      var e = eleveActuel();
+      var f = e.frais.find(function(x){ return x.montant - x.paye > 0; });
+      if (f) {
+        f.paye = f.montant;
+        sauverDB();
+        rendre();
+      }
+    },
+    ouvrirConversation: function(i) { aller("conversation", {conversationOuverte: i}); },
+    envoyerMessage: function() {
+      var input = document.getElementById("msg-input");
+      var texte = input.value.trim();
+      if (!texte) return;
+      var c = DB.conversations[etat.conversationOuverte];
+      c.messages.push({ de: "moi", texte: texte });
+      c.dernier = texte;
+      c.temps = "À l'instant";
+      sauverDB();
+      rendre();
+      setTimeout(function(){
+        var zone = document.querySelector(".chat-zone");
+        if (zone) zone.scrollTop = zone.scrollHeight;
+      }, 30);
+    },
+    deconnecter: function() {
+      historique = [];
+      aller("login");
+    }
+  };
+
+  rendre();
+})();
+</script>
+</body>
+</html>
+

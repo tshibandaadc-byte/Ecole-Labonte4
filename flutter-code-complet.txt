@@ -1,0 +1,2516 @@
+========================================================================
+ÉCOLE LA BONTÉ — CODE FLUTTER COMPLET (regroupé en un seul fichier)
+========================================================================
+Ce fichier contient tout le code source Flutter écrit jusqu'ici.
+Chaque section commence par le CHEMIN exact où recréer le fichier
+sur ton PC (dans un projet Flutter créé avec `flutter create ecole_la_bonte`).
+
+Structure à recréer :
+  ecole_la_bonte/
+  ├── pubspec.yaml
+  ├── analysis_options.yaml
+  └── lib/
+      ├── main.dart
+      ├── utils/
+      │   ├── config.dart
+      │   └── theme.dart
+      ├── models/
+      │   ├── utilisateur.dart
+      │   ├── eleve.dart
+      │   ├── note.dart
+      │   ├── frais.dart
+      │   ├── communique.dart
+      │   └── message.dart
+      ├── services/
+      │   ├── api_service.dart
+      │   ├── auth_service.dart
+      │   ├── eleve_service.dart
+      │   ├── note_service.dart
+      │   ├── paiement_service.dart
+      │   └── communication_service.dart
+      ├── providers/
+      │   ├── auth_provider.dart
+      │   ├── eleve_provider.dart
+      │   └── communication_provider.dart
+      ├── widgets/
+      │   ├── carte_info.dart
+      │   └── barre_navigation_bas.dart
+      └── screens/
+          ├── commun/
+          │   ├── splash_screen.dart
+          │   ├── accueil_router_screen.dart
+          │   ├── profil_screen.dart
+          │   ├── messagerie_screen.dart
+          │   └── conversation_screen.dart
+          ├── auth/
+          │   ├── login_screen.dart
+          │   └── inscription_eleve_screen.dart
+          └── eleve/
+              ├── dashboard_eleve_screen.dart
+              ├── notes_eleve_screen.dart
+              └── frais_eleve_screen.dart
+
+NOTE IMPORTANTE : les dashboards Professeur, Assistant et Direction
+n'ont pas encore été écrits (on s'est arrêté avant). Dis-le-moi et je
+te les ajoute dans un prochain envoi.
+
+========================================================================
+FICHIER : pubspec.yaml
+========================================================================
+
+name: ecole_la_bonte
+description: Application de gestion scolaire École La Bonté
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  dio: ^5.4.0
+  provider: ^6.1.1
+  flutter_secure_storage: ^9.0.0
+  intl: ^0.19.0
+  image_picker: ^1.0.7
+  flutter_svg: ^2.0.9
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+
+
+========================================================================
+FICHIER : analysis_options.yaml
+========================================================================
+
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_literals_to_create_immutables: true
+
+
+========================================================================
+FICHIER : lib/utils/config.dart
+========================================================================
+
+// =========================================
+// lib/utils/config.dart — Configuration globale
+// =========================================
+class Config {
+  // ⚠️ Remplace par l'URL réelle de ton backend une fois déployé.
+  // En développement local avec un émulateur Android : 10.0.2.2 pointe
+  // vers le localhost de ta machine. Sur un vrai téléphone, utilise
+  // l'adresse IP locale de ton PC (ex: http://192.168.1.10:8000) ou
+  // l'URL de ton serveur déployé (ex: https://api.labonte-ecole.ac).
+  static const String baseUrl = "http://10.0.2.2:8000";
+
+  static const String apiAuth = "/api/auth";
+  static const String apiEleves = "/api/eleves";
+  static const String apiNotes = "/api/notes";
+  static const String apiBulletins = "/api/bulletins";
+  static const String apiFrais = "/api/frais";
+  static const String apiPaiements = "/api/paiements";
+  static const String apiCommuniques = "/api/communiques";
+  static const String apiMessages = "/api/messages";
+}
+
+
+========================================================================
+FICHIER : lib/utils/theme.dart
+========================================================================
+
+// =========================================
+// lib/utils/theme.dart — Thème visuel de l'application
+// =========================================
+import 'package:flutter/material.dart';
+
+class AppTheme {
+  static const Color bleu = Color(0xFF1E3A5F);
+  static const Color bleuClair = Color(0xFF2C5282);
+  static const Color or = Color(0xFFC89B3C);
+  static const Color vert = Color(0xFF2F6846);
+  static const Color rouge = Color(0xFFB3452C);
+  static const Color fond = Color(0xFFF7F5F0);
+
+  static ThemeData get theme {
+    return ThemeData(
+      useMaterial3: true,
+      scaffoldBackgroundColor: fond,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: bleu,
+        primary: bleu,
+        secondary: or,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: bleu,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: bleu,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade200),
+        ),
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/models/utilisateur.dart
+========================================================================
+
+// =========================================
+// lib/models/utilisateur.dart
+// =========================================
+class Utilisateur {
+  final int id;
+  final String nom;
+  final String prenom;
+  final String role;
+  final String? telephone;
+  final String? email;
+  final String? photoUrl;
+
+  Utilisateur({
+    required this.id,
+    required this.nom,
+    required this.prenom,
+    required this.role,
+    this.telephone,
+    this.email,
+    this.photoUrl,
+  });
+
+  factory Utilisateur.fromJson(Map<String, dynamic> json) {
+    return Utilisateur(
+      id: json['id'] as int,
+      nom: json['nom'] as String,
+      prenom: json['prenom'] as String,
+      role: json['role'] as String,
+      telephone: json['telephone'] as String?,
+      email: json['email'] as String?,
+      photoUrl: json['photo_url'] as String?,
+    );
+  }
+
+  String get nomComplet => "$prenom $nom";
+}
+
+
+========================================================================
+FICHIER : lib/models/eleve.dart
+========================================================================
+
+// =========================================
+// lib/models/eleve.dart
+// =========================================
+class Eleve {
+  final int id;
+  final String matricule;
+  final String nom;
+  final String prenom;
+  final DateTime dateNaissance;
+  final String? lieuNaissance;
+  final String sexe;
+  final int? classeId;
+  final String? classeNom;
+  final String statut;
+
+  Eleve({
+    required this.id,
+    required this.matricule,
+    required this.nom,
+    required this.prenom,
+    required this.dateNaissance,
+    this.lieuNaissance,
+    required this.sexe,
+    this.classeId,
+    this.classeNom,
+    required this.statut,
+  });
+
+  factory Eleve.fromJson(Map<String, dynamic> json) {
+    return Eleve(
+      id: json['id'] as int,
+      matricule: json['matricule'] as String,
+      nom: json['nom'] as String? ?? '',
+      prenom: json['prenom'] as String? ?? '',
+      dateNaissance: DateTime.parse(json['date_naissance'] as String),
+      lieuNaissance: json['lieu_naissance'] as String?,
+      sexe: json['sexe'] as String? ?? 'M',
+      classeId: json['classe_id'] as int?,
+      classeNom: json['classe_nom'] as String?,
+      statut: json['statut'] as String? ?? 'actif',
+    );
+  }
+
+  String get nomComplet => "$prenom $nom";
+}
+
+
+========================================================================
+FICHIER : lib/models/note.dart
+========================================================================
+
+// =========================================
+// lib/models/note.dart
+// =========================================
+class Note {
+  final int id;
+  final int eleveId;
+  final String matiere;
+  final double note;
+  final int coefficient;
+  final String periode;
+  final String? typeEval;
+
+  Note({
+    required this.id,
+    required this.eleveId,
+    required this.matiere,
+    required this.note,
+    required this.coefficient,
+    required this.periode,
+    this.typeEval,
+  });
+
+  factory Note.fromJson(Map<String, dynamic> json) {
+    return Note(
+      id: json['id'] as int,
+      eleveId: json['eleve_id'] as int? ?? 0,
+      matiere: json['matiere'] as String? ?? '',
+      note: (json['note'] as num).toDouble(),
+      coefficient: json['coefficient'] as int? ?? 1,
+      periode: json['periode'] as String? ?? '',
+      typeEval: json['type_eval'] as String?,
+    );
+  }
+}
+
+class Bulletin {
+  final int id;
+  final int eleveId;
+  final String periode;
+  final double? moyenne;
+  final int? rang;
+  final String statut;
+  final String? pdfUrl;
+
+  Bulletin({
+    required this.id,
+    required this.eleveId,
+    required this.periode,
+    this.moyenne,
+    this.rang,
+    required this.statut,
+    this.pdfUrl,
+  });
+
+  factory Bulletin.fromJson(Map<String, dynamic> json) {
+    return Bulletin(
+      id: json['id'] as int,
+      eleveId: json['eleve_id'] as int,
+      periode: json['periode'] as String,
+      moyenne: json['moyenne'] != null ? (json['moyenne'] as num).toDouble() : null,
+      rang: json['rang'] as int?,
+      statut: json['statut'] as String? ?? 'brouillon',
+      pdfUrl: json['pdf_url'] as String?,
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/models/frais.dart
+========================================================================
+
+// =========================================
+// lib/models/frais.dart
+// =========================================
+class Frais {
+  final int id;
+  final String libelle;
+  final double montant;
+  final String? echeance;
+  final double totalPaye;
+  final double resteAPayer;
+
+  Frais({
+    required this.id,
+    required this.libelle,
+    required this.montant,
+    this.echeance,
+    required this.totalPaye,
+    required this.resteAPayer,
+  });
+
+  factory Frais.fromJson(Map<String, dynamic> json) {
+    return Frais(
+      id: json['id'] as int,
+      libelle: json['libelle'] as String,
+      montant: (json['montant'] as num).toDouble(),
+      echeance: json['echeance'] as String?,
+      totalPaye: (json['total_paye'] as num?)?.toDouble() ?? 0,
+      resteAPayer: (json['reste_a_payer'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  bool get estPaye => resteAPayer <= 0;
+}
+
+class Paiement {
+  final int id;
+  final double montantPaye;
+  final String mode;
+  final String recuNum;
+  final DateTime datePaiement;
+
+  Paiement({
+    required this.id,
+    required this.montantPaye,
+    required this.mode,
+    required this.recuNum,
+    required this.datePaiement,
+  });
+
+  factory Paiement.fromJson(Map<String, dynamic> json) {
+    return Paiement(
+      id: json['id'] as int,
+      montantPaye: (json['montant_paye'] as num).toDouble(),
+      mode: json['mode'] as String,
+      recuNum: json['recu_num'] as String,
+      datePaiement: DateTime.parse(json['date_paiement'] as String),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/models/communique.dart
+========================================================================
+
+// =========================================
+// lib/models/communique.dart
+// =========================================
+class Communique {
+  final int id;
+  final String titre;
+  final String contenu;
+  final String categorie;
+  final DateTime datePub;
+  final String? auteurNom;
+
+  Communique({
+    required this.id,
+    required this.titre,
+    required this.contenu,
+    required this.categorie,
+    required this.datePub,
+    this.auteurNom,
+  });
+
+  factory Communique.fromJson(Map<String, dynamic> json) {
+    return Communique(
+      id: json['id'] as int,
+      titre: json['titre'] as String,
+      contenu: json['contenu'] as String,
+      categorie: json['categorie'] as String? ?? 'general',
+      datePub: DateTime.parse(json['date_pub'] as String),
+      auteurNom: json['auteur_nom'] as String?,
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/models/message.dart
+========================================================================
+
+// =========================================
+// lib/models/message.dart
+// =========================================
+class Conversation {
+  final int conversationId;
+  final int autreUtilisateurId;
+  final String nom;
+  final String prenom;
+  final String? role;
+  final String? dernierMessage;
+  final int nonLus;
+
+  Conversation({
+    required this.conversationId,
+    required this.autreUtilisateurId,
+    required this.nom,
+    required this.prenom,
+    this.role,
+    this.dernierMessage,
+    required this.nonLus,
+  });
+
+  factory Conversation.fromJson(Map<String, dynamic> json) {
+    return Conversation(
+      conversationId: json['conversation_id'] as int,
+      autreUtilisateurId: json['autre_utilisateur_id'] as int,
+      nom: json['nom'] as String? ?? '',
+      prenom: json['prenom'] as String? ?? '',
+      role: json['role'] as String?,
+      dernierMessage: json['dernier_message'] as String?,
+      nonLus: json['non_lus'] as int? ?? 0,
+    );
+  }
+}
+
+class MessageChat {
+  final int id;
+  final int expediteurId;
+  final String contenu;
+  final DateTime dateEnvoi;
+
+  MessageChat({
+    required this.id,
+    required this.expediteurId,
+    required this.contenu,
+    required this.dateEnvoi,
+  });
+
+  factory MessageChat.fromJson(Map<String, dynamic> json) {
+    return MessageChat(
+      id: json['id'] as int,
+      expediteurId: json['expediteur_id'] as int,
+      contenu: json['contenu'] as String,
+      dateEnvoi: DateTime.parse(json['date_envoi'] as String),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/services/api_service.dart
+========================================================================
+
+// =========================================
+// lib/services/api_service.dart — Client HTTP centralisé
+// =========================================
+import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/config.dart';
+
+class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  ApiException(this.message, {this.statusCode});
+
+  @override
+  String toString() => message;
+}
+
+class ApiService {
+  static final ApiService _instance = ApiService._interne();
+  factory ApiService() => _instance;
+
+  late final Dio dio;
+  final _storage = const FlutterSecureStorage();
+  static const _cleToken = 'jwt_token';
+
+  ApiService._interne() {
+    dio = Dio(BaseOptions(
+      baseUrl: Config.baseUrl,
+      connectTimeout: const Duration(seconds: 12),
+      receiveTimeout: const Duration(seconds: 12),
+      headers: {'Content-Type': 'application/json'},
+    ));
+
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await _storage.read(key: _cleToken);
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
+      onError: (DioException erreur, handler) {
+        handler.next(erreur);
+      },
+    ));
+  }
+
+  Future<void> sauverToken(String token) async {
+    await _storage.write(key: _cleToken, value: token);
+  }
+
+  Future<String?> lireToken() async {
+    return _storage.read(key: _cleToken);
+  }
+
+  Future<void> supprimerToken() async {
+    await _storage.delete(key: _cleToken);
+  }
+
+  Future<bool> estConnecte() async {
+    final token = await lireToken();
+    return token != null;
+  }
+
+  /// Traduit les erreurs Dio en messages clairs pour l'utilisateur.
+  ApiException traiterErreur(DioException e) {
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      return ApiException("Le serveur ne répond pas. Vérifiez votre connexion.");
+    }
+    if (e.type == DioExceptionType.connectionError) {
+      return ApiException("Impossible de joindre le serveur. Vérifiez votre connexion internet.");
+    }
+    final data = e.response?.data;
+    final statusCode = e.response?.statusCode;
+    String message = "Une erreur est survenue.";
+    if (data is Map && data['detail'] != null) {
+      message = data['detail'] is String ? data['detail'] : data['detail'].toString();
+    } else if (data is Map && data['message'] != null) {
+      message = data['message'].toString();
+    }
+    return ApiException(message, statusCode: statusCode);
+  }
+}
+
+
+========================================================================
+FICHIER : lib/services/auth_service.dart
+========================================================================
+
+// =========================================
+// lib/services/auth_service.dart
+// =========================================
+import 'package:dio/dio.dart';
+import '../models/utilisateur.dart';
+import '../utils/config.dart';
+import 'api_service.dart';
+
+class AuthService {
+  final ApiService _api = ApiService();
+
+  Future<Utilisateur> connecter(String identifiant, String motDePasse) async {
+    try {
+      final reponse = await _api.dio.post(
+        "${Config.apiAuth}/login",
+        data: {"identifiant": identifiant, "mot_de_passe": motDePasse},
+      );
+
+      final token = reponse.data['access_token'] as String;
+      await _api.sauverToken(token);
+
+      return Utilisateur.fromJson(reponse.data['utilisateur'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<void> deconnecter() async {
+    await _api.supprimerToken();
+  }
+
+  Future<bool> estConnecte() => _api.estConnecte();
+}
+
+
+========================================================================
+FICHIER : lib/services/eleve_service.dart
+========================================================================
+
+// =========================================
+// lib/services/eleve_service.dart
+// =========================================
+import 'package:dio/dio.dart';
+import '../models/eleve.dart';
+import '../utils/config.dart';
+import 'api_service.dart';
+
+class EleveService {
+  final ApiService _api = ApiService();
+
+  Future<Map<String, dynamic>> inscrire({
+    required String nom,
+    required String prenom,
+    required String dateNaissance, // format YYYY-MM-DD
+    String? lieuNaissance,
+    required String sexe,
+    required int classeId,
+    required String motDePasse,
+    String? telephone,
+    String? email,
+    String? tuteurNom,
+    String? tuteurTelephone,
+  }) async {
+    try {
+      final reponse = await _api.dio.post(
+        "${Config.apiEleves}/inscription",
+        data: {
+          "nom": nom,
+          "prenom": prenom,
+          "date_naissance": dateNaissance,
+          "lieu_naissance": lieuNaissance,
+          "sexe": sexe,
+          "classe_id": classeId,
+          "mot_de_passe": motDePasse,
+          "telephone": telephone,
+          "email": email,
+          "tuteur_nom": tuteurNom,
+          "tuteur_telephone": tuteurTelephone,
+        },
+      );
+      return reponse.data['data'] as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<Eleve> obtenirParId(int eleveId) async {
+    try {
+      final reponse = await _api.dio.get("${Config.apiEleves}/$eleveId");
+      return Eleve.fromJson(reponse.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<List<Eleve>> listerParClasse(int classeId) async {
+    try {
+      final reponse = await _api.dio.get("${Config.apiEleves}/classe/$classeId");
+      final liste = reponse.data['data'] as List;
+      return liste.map((j) => Eleve.fromJson(j as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+}
+
+
+========================================================================
+FICHIER : lib/services/note_service.dart
+========================================================================
+
+// =========================================
+// lib/services/note_service.dart
+// =========================================
+import 'package:dio/dio.dart';
+import '../models/note.dart';
+import '../utils/config.dart';
+import 'api_service.dart';
+
+class NoteService {
+  final ApiService _api = ApiService();
+
+  Future<Map<String, dynamic>> listerNotesEleve(int eleveId, {String? periode}) async {
+    try {
+      final reponse = await _api.dio.get(
+        "${Config.apiNotes}/eleve/$eleveId",
+        queryParameters: periode != null ? {"periode": periode} : null,
+      );
+      final data = reponse.data['data'] as Map<String, dynamic>;
+      final notes = (data['notes'] as List)
+          .map((j) => Note.fromJson(j as Map<String, dynamic>))
+          .toList();
+      return {"notes": notes, "moyenne": data['moyenne']};
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<Bulletin> obtenirBulletin(int eleveId, String periode) async {
+    try {
+      final reponse = await _api.dio.get("${Config.apiBulletins}/$eleveId/$periode");
+      return Bulletin.fromJson(reponse.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<Note> saisirNote({
+    required int eleveId,
+    required int matiereId,
+    required double note,
+    required String periode,
+    String? typeEval,
+    int coefficient = 1,
+  }) async {
+    try {
+      final reponse = await _api.dio.post(
+        Config.apiNotes,
+        data: {
+          "eleve_id": eleveId,
+          "matiere_id": matiereId,
+          "note": note,
+          "periode": periode,
+          "type_eval": typeEval,
+          "coefficient": coefficient,
+        },
+      );
+      return Note.fromJson(reponse.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+}
+
+
+========================================================================
+FICHIER : lib/services/paiement_service.dart
+========================================================================
+
+// =========================================
+// lib/services/paiement_service.dart
+// =========================================
+import 'package:dio/dio.dart';
+import '../models/frais.dart';
+import '../utils/config.dart';
+import 'api_service.dart';
+
+class PaiementService {
+  final ApiService _api = ApiService();
+
+  Future<List<Frais>> listerFrais(int eleveId) async {
+    try {
+      final reponse = await _api.dio.get("${Config.apiFrais}/eleve/$eleveId");
+      final liste = reponse.data['data'] as List;
+      return liste.map((j) => Frais.fromJson(j as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<Paiement> payer({
+    required int eleveId,
+    required int fraisId,
+    required double montant,
+    required String mode,
+    String? reference,
+  }) async {
+    try {
+      final reponse = await _api.dio.post(
+        Config.apiPaiements,
+        data: {
+          "eleve_id": eleveId,
+          "frais_id": fraisId,
+          "montant_paye": montant,
+          "mode": mode,
+          "reference": reference,
+        },
+      );
+      return Paiement.fromJson(reponse.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<List<Paiement>> historique(int eleveId) async {
+    try {
+      final reponse = await _api.dio.get("${Config.apiPaiements}/eleve/$eleveId");
+      final liste = reponse.data['data'] as List;
+      return liste.map((j) => Paiement.fromJson(j as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> statsDuJour() async {
+    try {
+      final reponse = await _api.dio.get("${Config.apiPaiements}/stats/jour");
+      return reponse.data['data'] as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> statsRecouvrement(String anneeScolaire) async {
+    try {
+      final reponse = await _api.dio.get(
+        "${Config.apiPaiements}/stats/recouvrement",
+        queryParameters: {"annee": anneeScolaire},
+      );
+      return reponse.data['data'] as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+}
+
+
+========================================================================
+FICHIER : lib/services/communication_service.dart
+========================================================================
+
+// =========================================
+// lib/services/communication_service.dart
+// =========================================
+import 'package:dio/dio.dart';
+import '../models/communique.dart';
+import '../models/message.dart';
+import '../utils/config.dart';
+import 'api_service.dart';
+
+class CommunicationService {
+  final ApiService _api = ApiService();
+
+  Future<List<Communique>> listerCommuniques({String? cible}) async {
+    try {
+      final reponse = await _api.dio.get(
+        Config.apiCommuniques,
+        queryParameters: cible != null ? {"cible": cible} : null,
+      );
+      final liste = reponse.data['data'] as List;
+      return liste.map((j) => Communique.fromJson(j as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<Communique> publierCommunique({
+    required String titre,
+    required String contenu,
+    String categorie = "general",
+    String cible = "tous",
+  }) async {
+    try {
+      final reponse = await _api.dio.post(
+        Config.apiCommuniques,
+        data: {"titre": titre, "contenu": contenu, "categorie": categorie, "cible": cible},
+      );
+      return Communique.fromJson(reponse.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<List<Conversation>> listerConversations() async {
+    try {
+      final reponse = await _api.dio.get(Config.apiMessages);
+      final liste = reponse.data['data'] as List;
+      return liste.map((j) => Conversation.fromJson(j as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<List<MessageChat>> listerMessages(int conversationId) async {
+    try {
+      final reponse = await _api.dio.get("${Config.apiMessages}/$conversationId");
+      final liste = reponse.data['data'] as List;
+      return liste.map((j) => MessageChat.fromJson(j as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+
+  Future<MessageChat> envoyerMessage(int destinataireId, String contenu) async {
+    try {
+      final reponse = await _api.dio.post(
+        Config.apiMessages,
+        data: {"destinataire_id": destinataireId, "contenu": contenu},
+      );
+      return MessageChat.fromJson(reponse.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _api.traiterErreur(e);
+    }
+  }
+}
+
+
+========================================================================
+FICHIER : lib/providers/auth_provider.dart
+========================================================================
+
+// =========================================
+// lib/providers/auth_provider.dart
+// =========================================
+import 'package:flutter/foundation.dart';
+import '../models/utilisateur.dart';
+import '../services/auth_service.dart';
+import '../services/api_service.dart';
+
+enum EtatAuth { inconnu, connecte, deconnecte }
+
+class AuthProvider extends ChangeNotifier {
+  final AuthService _authService = AuthService();
+
+  Utilisateur? _utilisateur;
+  EtatAuth _etat = EtatAuth.inconnu;
+  bool _chargement = false;
+  String? _erreur;
+
+  Utilisateur? get utilisateur => _utilisateur;
+  EtatAuth get etat => _etat;
+  bool get chargement => _chargement;
+  String? get erreur => _erreur;
+  bool get estConnecte => _etat == EtatAuth.connecte;
+
+  Future<void> verifierSessionExistante() async {
+    final token = await ApiService().lireToken();
+    if (token != null) {
+      _etat = EtatAuth.connecte;
+    } else {
+      _etat = EtatAuth.deconnecte;
+    }
+    notifyListeners();
+  }
+
+  Future<bool> connecter(String identifiant, String motDePasse) async {
+    _chargement = true;
+    _erreur = null;
+    notifyListeners();
+
+    try {
+      final utilisateur = await _authService.connecter(identifiant, motDePasse);
+      _utilisateur = utilisateur;
+      _etat = EtatAuth.connecte;
+      _chargement = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _erreur = e.toString();
+      _chargement = false;
+      _etat = EtatAuth.deconnecte;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> deconnecter() async {
+    await _authService.deconnecter();
+    _utilisateur = null;
+    _etat = EtatAuth.deconnecte;
+    notifyListeners();
+  }
+
+  void effacerErreur() {
+    _erreur = null;
+    notifyListeners();
+  }
+}
+
+
+========================================================================
+FICHIER : lib/providers/eleve_provider.dart
+========================================================================
+
+// =========================================
+// lib/providers/eleve_provider.dart
+// =========================================
+import 'package:flutter/foundation.dart';
+import '../models/eleve.dart';
+import '../models/note.dart';
+import '../models/frais.dart';
+import '../services/eleve_service.dart';
+import '../services/note_service.dart';
+import '../services/paiement_service.dart';
+
+class EleveProvider extends ChangeNotifier {
+  final EleveService _eleveService = EleveService();
+  final NoteService _noteService = NoteService();
+  final PaiementService _paiementService = PaiementService();
+
+  Eleve? _eleveCourant;
+  List<Note> _notes = [];
+  double? _moyenne;
+  List<Frais> _frais = [];
+  bool _chargement = false;
+  String? _erreur;
+
+  Eleve? get eleveCourant => _eleveCourant;
+  List<Note> get notes => _notes;
+  double? get moyenne => _moyenne;
+  List<Frais> get frais => _frais;
+  bool get chargement => _chargement;
+  String? get erreur => _erreur;
+
+  double get totalRestantDu =>
+      _frais.fold(0.0, (somme, f) => somme + (f.resteAPayer > 0 ? f.resteAPayer : 0));
+
+  Future<void> chargerEleve(int eleveId) async {
+    _chargement = true;
+    _erreur = null;
+    notifyListeners();
+    try {
+      _eleveCourant = await _eleveService.obtenirParId(eleveId);
+    } catch (e) {
+      _erreur = e.toString();
+    }
+    _chargement = false;
+    notifyListeners();
+  }
+
+  Future<void> chargerNotes(int eleveId, {String periode = "Trimestre 1"}) async {
+    _chargement = true;
+    notifyListeners();
+    try {
+      final resultat = await _noteService.listerNotesEleve(eleveId, periode: periode);
+      _notes = resultat['notes'] as List<Note>;
+      _moyenne = resultat['moyenne'] != null ? (resultat['moyenne'] as num).toDouble() : null;
+    } catch (e) {
+      _erreur = e.toString();
+    }
+    _chargement = false;
+    notifyListeners();
+  }
+
+  Future<void> chargerFrais(int eleveId) async {
+    _chargement = true;
+    notifyListeners();
+    try {
+      _frais = await _paiementService.listerFrais(eleveId);
+    } catch (e) {
+      _erreur = e.toString();
+    }
+    _chargement = false;
+    notifyListeners();
+  }
+
+  Future<bool> payer({
+    required int eleveId,
+    required int fraisId,
+    required double montant,
+    required String mode,
+  }) async {
+    try {
+      await _paiementService.payer(eleveId: eleveId, fraisId: fraisId, montant: montant, mode: mode);
+      await chargerFrais(eleveId);
+      return true;
+    } catch (e) {
+      _erreur = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+}
+
+
+========================================================================
+FICHIER : lib/providers/communication_provider.dart
+========================================================================
+
+// =========================================
+// lib/providers/communication_provider.dart
+// =========================================
+import 'package:flutter/foundation.dart';
+import '../models/communique.dart';
+import '../models/message.dart';
+import '../services/communication_service.dart';
+
+class CommunicationProvider extends ChangeNotifier {
+  final CommunicationService _service = CommunicationService();
+
+  List<Communique> _communiques = [];
+  List<Conversation> _conversations = [];
+  List<MessageChat> _messagesConversation = [];
+  bool _chargement = false;
+  String? _erreur;
+
+  List<Communique> get communiques => _communiques;
+  List<Conversation> get conversations => _conversations;
+  List<MessageChat> get messagesConversation => _messagesConversation;
+  bool get chargement => _chargement;
+  String? get erreur => _erreur;
+
+  Future<void> chargerCommuniques() async {
+    _chargement = true;
+    notifyListeners();
+    try {
+      _communiques = await _service.listerCommuniques();
+    } catch (e) {
+      _erreur = e.toString();
+    }
+    _chargement = false;
+    notifyListeners();
+  }
+
+  Future<void> chargerConversations() async {
+    _chargement = true;
+    notifyListeners();
+    try {
+      _conversations = await _service.listerConversations();
+    } catch (e) {
+      _erreur = e.toString();
+    }
+    _chargement = false;
+    notifyListeners();
+  }
+
+  Future<void> chargerMessages(int conversationId) async {
+    _chargement = true;
+    notifyListeners();
+    try {
+      _messagesConversation = await _service.listerMessages(conversationId);
+    } catch (e) {
+      _erreur = e.toString();
+    }
+    _chargement = false;
+    notifyListeners();
+  }
+
+  Future<bool> envoyerMessage(int destinataireId, String contenu, int conversationId) async {
+    try {
+      final message = await _service.envoyerMessage(destinataireId, contenu);
+      _messagesConversation.add(message);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _erreur = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+}
+
+
+========================================================================
+FICHIER : lib/widgets/carte_info.dart
+========================================================================
+
+// =========================================
+// lib/widgets/carte_info.dart — Carte réutilisable pour les dashboards
+// =========================================
+import 'package:flutter/material.dart';
+
+class CarteInfo extends StatelessWidget {
+  final String titre;
+  final Widget contenu;
+  final VoidCallback? onTap;
+
+  const CarteInfo({super.key, required this.titre, required this.contenu, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(titre, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              contenu,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/widgets/barre_navigation_bas.dart
+========================================================================
+
+// =========================================
+// lib/widgets/barre_navigation_bas.dart
+// =========================================
+import 'package:flutter/material.dart';
+import '../utils/theme.dart';
+
+class BarreNavigationBas extends StatelessWidget {
+  final int indexActif;
+  final List<_ItemNav> items;
+  final ValueChanged<int> onTap;
+
+  const BarreNavigationBas({
+    super.key,
+    required this.indexActif,
+    required this.items,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomNavigationBar(
+      currentIndex: indexActif,
+      onTap: onTap,
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: AppTheme.bleu,
+      unselectedItemColor: Colors.grey,
+      items: items
+          .map((it) => BottomNavigationBarItem(icon: Icon(it.icone), label: it.label))
+          .toList(),
+    );
+  }
+}
+
+class _ItemNav {
+  final IconData icone;
+  final String label;
+  const _ItemNav(this.icone, this.label);
+}
+
+class NavItems {
+  static const eleve = [
+    _ItemNav(Icons.home_outlined, "Accueil"),
+    _ItemNav(Icons.menu_book_outlined, "Notes"),
+    _ItemNav(Icons.chat_bubble_outline, "Messages"),
+    _ItemNav(Icons.settings_outlined, "Profil"),
+  ];
+  static const professeur = [
+    _ItemNav(Icons.home_outlined, "Accueil"),
+    _ItemNav(Icons.edit_note_outlined, "Notes"),
+    _ItemNav(Icons.chat_bubble_outline, "Messages"),
+    _ItemNav(Icons.person_outline, "Profil"),
+  ];
+  static const assistant = [
+    _ItemNav(Icons.home_outlined, "Accueil"),
+    _ItemNav(Icons.campaign_outlined, "Communiqués"),
+    _ItemNav(Icons.chat_bubble_outline, "Messages"),
+    _ItemNav(Icons.person_outline, "Profil"),
+  ];
+  static const direction = assistant;
+}
+
+
+========================================================================
+FICHIER : lib/main.dart
+========================================================================
+
+// =========================================
+// lib/main.dart — Point d'entrée
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'providers/auth_provider.dart';
+import 'providers/eleve_provider.dart';
+import 'providers/communication_provider.dart';
+import 'utils/theme.dart';
+import 'screens/commun/splash_screen.dart';
+
+void main() {
+  runApp(const EcoleLaBonteApp());
+}
+
+class EcoleLaBonteApp extends StatelessWidget {
+  const EcoleLaBonteApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => EleveProvider()),
+        ChangeNotifierProvider(create: (_) => CommunicationProvider()),
+      ],
+      child: MaterialApp(
+        title: 'École La Bonté',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.theme,
+        home: const SplashScreen(),
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/commun/splash_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/commun/splash_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../utils/theme.dart';
+import '../auth/login_screen.dart';
+import 'accueil_router_screen.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _demarrer();
+  }
+
+  Future<void> _demarrer() async {
+    final authProvider = context.read<AuthProvider>();
+    await authProvider.verifierSessionExistante();
+    await Future.delayed(const Duration(milliseconds: 700));
+
+    if (!mounted) return;
+    if (authProvider.estConnecte) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AccueilRouterScreen()),
+      );
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.bleu,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(color: AppTheme.or, shape: BoxShape.circle),
+              child: const Center(
+                child: Text("LB",
+                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppTheme.bleu)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text("École La Bonté",
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text("L'excellence à portée de main",
+                style: TextStyle(color: Colors.white70, fontSize: 13, fontStyle: FontStyle.italic)),
+            const SizedBox(height: 30),
+            const CircularProgressIndicator(color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/commun/accueil_router_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/commun/accueil_router_screen.dart
+// Redirige vers le bon tableau de bord selon le rôle connecté.
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../eleve/dashboard_eleve_screen.dart';
+import '../auth/login_screen.dart';
+
+class AccueilRouterScreen extends StatelessWidget {
+  const AccueilRouterScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final utilisateur = context.watch<AuthProvider>().utilisateur;
+
+    if (utilisateur == null) {
+      return const LoginScreen();
+    }
+
+    switch (utilisateur.role) {
+      case 'eleve':
+      case 'parent':
+        return const DashboardEleveScreen();
+      // NOTE : les dashboards Professeur, Assistant et Direction ne sont
+      // pas encore écrits. Une fois ajoutés, importer et brancher ici :
+      // case 'professeur': return const DashboardProfesseurScreen();
+      // case 'assistant': return const DashboardAssistantScreen();
+      // case 'direction':
+      // case 'promoteur': return const DashboardDirectionScreen();
+      default:
+        return const LoginScreen();
+    }
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/auth/login_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/auth/login_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../utils/theme.dart';
+import '../commun/accueil_router_screen.dart';
+import 'inscription_eleve_screen.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _identifiantCtrl = TextEditingController();
+  final _motDePasseCtrl = TextEditingController();
+  bool _motDePasseVisible = false;
+
+  @override
+  void dispose() {
+    _identifiantCtrl.dispose();
+    _motDePasseCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _seConnecter() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final authProvider = context.read<AuthProvider>();
+    final succes = await authProvider.connecter(
+      _identifiantCtrl.text.trim(),
+      _motDePasseCtrl.text.trim(),
+    );
+
+    if (!mounted) return;
+    if (succes) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AccueilRouterScreen()),
+      );
+    } else if (authProvider.erreur != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(authProvider.erreur!), backgroundColor: AppTheme.rouge),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 60),
+                Center(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: const BoxDecoration(color: AppTheme.or, shape: BoxShape.circle),
+                        child: const Center(
+                          child: Text("LB",
+                              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppTheme.bleu)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text("École La Bonté",
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.bleu)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 40),
+                TextFormField(
+                  controller: _identifiantCtrl,
+                  decoration: const InputDecoration(
+                    labelText: "Téléphone, email ou matricule",
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? "Ce champ est requis." : null,
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _motDePasseCtrl,
+                  obscureText: !_motDePasseVisible,
+                  decoration: InputDecoration(
+                    labelText: "Mot de passe",
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(_motDePasseVisible ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _motDePasseVisible = !_motDePasseVisible),
+                    ),
+                  ),
+                  validator: (v) => (v == null || v.isEmpty) ? "Ce champ est requis." : null,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: authProvider.chargement ? null : _seConnecter,
+                  child: authProvider.chargement
+                      ? const SizedBox(
+                          height: 20, width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text("Se connecter"),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const InscriptionEleveScreen()),
+                    );
+                  },
+                  child: const Text("Pas de compte ? S'inscrire"),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/auth/inscription_eleve_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/auth/inscription_eleve_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../services/eleve_service.dart';
+import '../../utils/theme.dart';
+
+class InscriptionEleveScreen extends StatefulWidget {
+  const InscriptionEleveScreen({super.key});
+
+  @override
+  State<InscriptionEleveScreen> createState() => _InscriptionEleveScreenState();
+}
+
+class _InscriptionEleveScreenState extends State<InscriptionEleveScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _eleveService = EleveService();
+
+  final _nomCtrl = TextEditingController();
+  final _prenomCtrl = TextEditingController();
+  final _lieuNaissanceCtrl = TextEditingController();
+  final _telephoneCtrl = TextEditingController();
+  final _tuteurNomCtrl = TextEditingController();
+  final _tuteurTelCtrl = TextEditingController();
+  final _motDePasseCtrl = TextEditingController();
+
+  DateTime? _dateNaissance;
+  String _sexe = "M";
+  int _classeId = 1;
+  bool _chargement = false;
+
+  final Map<String, int> _classesDisponibles = {
+    "1ère": 1, "2ème": 2, "3ème": 3, "4ème": 4, "5ème": 5, "6ème": 6,
+  };
+
+  @override
+  void dispose() {
+    _nomCtrl.dispose();
+    _prenomCtrl.dispose();
+    _lieuNaissanceCtrl.dispose();
+    _telephoneCtrl.dispose();
+    _tuteurNomCtrl.dispose();
+    _tuteurTelCtrl.dispose();
+    _motDePasseCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _choisirDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2015, 1, 1),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (date != null) setState(() => _dateNaissance = date);
+  }
+
+  Future<void> _valider() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_dateNaissance == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Merci de choisir la date de naissance.")),
+      );
+      return;
+    }
+    if (_tuteurTelCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Le téléphone du tuteur est requis.")),
+      );
+      return;
+    }
+
+    setState(() => _chargement = true);
+    try {
+      final resultat = await _eleveService.inscrire(
+        nom: _nomCtrl.text.trim(),
+        prenom: _prenomCtrl.text.trim(),
+        dateNaissance: DateFormat('yyyy-MM-dd').format(_dateNaissance!),
+        lieuNaissance: _lieuNaissanceCtrl.text.trim(),
+        sexe: _sexe,
+        classeId: _classeId,
+        motDePasse: _motDePasseCtrl.text.trim(),
+        telephone: _telephoneCtrl.text.trim().isEmpty ? null : _telephoneCtrl.text.trim(),
+        tuteurNom: _tuteurNomCtrl.text.trim(),
+        tuteurTelephone: _tuteurTelCtrl.text.trim(),
+      );
+
+      if (!mounted) return;
+      final matricule = resultat['matricule'] as String;
+      _afficherMatricule(matricule);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppTheme.rouge),
+      );
+    } finally {
+      if (mounted) setState(() => _chargement = false);
+    }
+  }
+
+  void _afficherMatricule(String matricule) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text("✅ Inscription réussie"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Votre numéro matricule :"),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+              decoration: BoxDecoration(
+                color: AppTheme.vert.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(matricule,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.vert)),
+            ),
+            const SizedBox(height: 10),
+            const Text("Conservez ce numéro à vie.", style: TextStyle(fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text("Continuer vers la connexion"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Inscription élève")),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _nomCtrl,
+                decoration: const InputDecoration(labelText: "Nom"),
+                validator: (v) => (v == null || v.trim().length < 2) ? "Nom requis." : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _prenomCtrl,
+                decoration: const InputDecoration(labelText: "Prénom"),
+                validator: (v) => (v == null || v.trim().length < 2) ? "Prénom requis." : null,
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _choisirDate,
+                child: InputDecorator(
+                  decoration: const InputDecoration(labelText: "Date de naissance"),
+                  child: Text(
+                    _dateNaissance == null
+                        ? "Sélectionner une date"
+                        : DateFormat('dd/MM/yyyy').format(_dateNaissance!),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _lieuNaissanceCtrl,
+                decoration: const InputDecoration(labelText: "Lieu de naissance"),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _sexe,
+                decoration: const InputDecoration(labelText: "Sexe"),
+                items: const [
+                  DropdownMenuItem(value: "M", child: Text("Masculin")),
+                  DropdownMenuItem(value: "F", child: Text("Féminin")),
+                ],
+                onChanged: (v) => setState(() => _sexe = v ?? "M"),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: _classeId,
+                decoration: const InputDecoration(labelText: "Classe souhaitée"),
+                items: _classesDisponibles.entries
+                    .map((e) => DropdownMenuItem(value: e.value, child: Text(e.key)))
+                    .toList(),
+                onChanged: (v) => setState(() => _classeId = v ?? 1),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _telephoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: "Téléphone (élève, facultatif)"),
+              ),
+              const SizedBox(height: 20),
+              const Text("Tuteur", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _tuteurNomCtrl,
+                decoration: const InputDecoration(labelText: "Nom du tuteur"),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _tuteurTelCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: "Téléphone du tuteur"),
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _motDePasseCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: "Mot de passe (min. 6 caractères)"),
+                validator: (v) => (v == null || v.length < 6) ? "6 caractères minimum." : null,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _chargement ? null : _valider,
+                child: _chargement
+                    ? const SizedBox(
+                        height: 20, width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text("Valider l'inscription"),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/eleve/dashboard_eleve_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/eleve/dashboard_eleve_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/eleve_provider.dart';
+import '../../widgets/carte_info.dart';
+import '../../widgets/barre_navigation_bas.dart';
+import '../../utils/theme.dart';
+import 'notes_eleve_screen.dart';
+import 'frais_eleve_screen.dart';
+import '../commun/messagerie_screen.dart';
+import '../commun/profil_screen.dart';
+
+class DashboardEleveScreen extends StatefulWidget {
+  const DashboardEleveScreen({super.key});
+
+  @override
+  State<DashboardEleveScreen> createState() => _DashboardEleveScreenState();
+}
+
+class _DashboardEleveScreenState extends State<DashboardEleveScreen> {
+  int _indexBarre = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _chargerDonnees());
+  }
+
+  Future<void> _chargerDonnees() async {
+    final utilisateur = context.read<AuthProvider>().utilisateur;
+    if (utilisateur == null) return;
+    final eleveProvider = context.read<EleveProvider>();
+    await eleveProvider.chargerNotes(utilisateur.id);
+    await eleveProvider.chargerFrais(utilisateur.id);
+  }
+
+  void _onNavTap(int index) {
+    setState(() => _indexBarre = index);
+    if (index == 1) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotesEleveScreen()));
+    } else if (index == 2) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MessagerieScreen()));
+    } else if (index == 3) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfilScreen()));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final utilisateur = context.watch<AuthProvider>().utilisateur;
+    final eleveProvider = context.watch<EleveProvider>();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Mon tableau de bord")),
+      body: RefreshIndicator(
+        onRefresh: _chargerDonnees,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text("Bonjour, ${utilisateur?.prenom ?? ''} 👋",
+                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+
+            CarteInfo(
+              titre: "📊 Moyenne générale",
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NotesEleveScreen())),
+              contenu: Text(
+                eleveProvider.moyenne != null ? "${eleveProvider.moyenne!.toStringAsFixed(1)} / 20" : "—",
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+            ),
+
+            CarteInfo(
+              titre: "💰 Frais scolaires",
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const FraisEleveScreen())),
+              contenu: eleveProvider.chargement
+                  ? const LinearProgressIndicator()
+                  : Text(
+                      eleveProvider.totalRestantDu > 0
+                          ? "${eleveProvider.totalRestantDu.toStringAsFixed(0)} FCFA restant"
+                          : "Tout est payé ✓",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: eleveProvider.totalRestantDu > 0 ? AppTheme.or : AppTheme.vert,
+                      ),
+                    ),
+            ),
+
+            if (eleveProvider.erreur != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(eleveProvider.erreur!, style: const TextStyle(color: AppTheme.rouge)),
+              ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: BarreNavigationBas(
+        indexActif: _indexBarre,
+        items: NavItems.eleve,
+        onTap: _onNavTap,
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/eleve/notes_eleve_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/eleve/notes_eleve_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/eleve_provider.dart';
+
+class NotesEleveScreen extends StatefulWidget {
+  const NotesEleveScreen({super.key});
+
+  @override
+  State<NotesEleveScreen> createState() => _NotesEleveScreenState();
+}
+
+class _NotesEleveScreenState extends State<NotesEleveScreen> {
+  String _periode = "Trimestre 1";
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _charger());
+  }
+
+  Future<void> _charger() async {
+    final utilisateur = context.read<AuthProvider>().utilisateur;
+    if (utilisateur == null) return;
+    await context.read<EleveProvider>().chargerNotes(utilisateur.id, periode: _periode);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final eleveProvider = context.watch<EleveProvider>();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Mes notes")),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: DropdownButton<String>(
+              value: _periode,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: "Trimestre 1", child: Text("Trimestre 1")),
+                DropdownMenuItem(value: "Trimestre 2", child: Text("Trimestre 2")),
+                DropdownMenuItem(value: "Trimestre 3", child: Text("Trimestre 3")),
+              ],
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _periode = v);
+                _charger();
+              },
+            ),
+          ),
+          if (eleveProvider.chargement) const LinearProgressIndicator(),
+          Expanded(
+            child: eleveProvider.notes.isEmpty
+                ? const Center(child: Text("Aucune note pour cette période."))
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: eleveProvider.notes.length,
+                    separatorBuilder: (_, __) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final note = eleveProvider.notes[index];
+                      final faible = note.note < 10;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(note.matiere),
+                        subtitle: Text("Coef. ${note.coefficient}"),
+                        trailing: Text(
+                          "${note.note}/20",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: faible ? Colors.red.shade700 : Colors.green.shade700,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          if (eleveProvider.moyenne != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              color: Colors.grey.shade100,
+              child: Text(
+                "Moyenne : ${eleveProvider.moyenne!.toStringAsFixed(2)} / 20",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/eleve/frais_eleve_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/eleve/frais_eleve_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/eleve_provider.dart';
+import '../../utils/theme.dart';
+
+class FraisEleveScreen extends StatefulWidget {
+  const FraisEleveScreen({super.key});
+
+  @override
+  State<FraisEleveScreen> createState() => _FraisEleveScreenState();
+}
+
+class _FraisEleveScreenState extends State<FraisEleveScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _charger());
+  }
+
+  Future<void> _charger() async {
+    final utilisateur = context.read<AuthProvider>().utilisateur;
+    if (utilisateur == null) return;
+    await context.read<EleveProvider>().chargerFrais(utilisateur.id);
+  }
+
+  Future<void> _payer(int fraisId, double montant) async {
+    final utilisateur = context.read<AuthProvider>().utilisateur;
+    if (utilisateur == null) return;
+
+    final mode = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(title: const Text("Mobile Money"), onTap: () => Navigator.pop(context, "mobile_money")),
+            ListTile(title: const Text("Espèces"), onTap: () => Navigator.pop(context, "especes")),
+            ListTile(title: const Text("Carte"), onTap: () => Navigator.pop(context, "carte")),
+          ],
+        ),
+      ),
+    );
+    if (mode == null) return;
+
+    final succes = await context.read<EleveProvider>().payer(
+          eleveId: utilisateur.id, fraisId: fraisId, montant: montant, mode: mode,
+        );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(succes ? "Paiement enregistré." : "Échec du paiement."),
+        backgroundColor: succes ? AppTheme.vert : AppTheme.rouge,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final eleveProvider = context.watch<EleveProvider>();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Frais et paiements")),
+      body: RefreshIndicator(
+        onRefresh: _charger,
+        child: eleveProvider.chargement
+            ? const Center(child: CircularProgressIndicator())
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: eleveProvider.frais.length,
+                itemBuilder: (context, index) {
+                  final f = eleveProvider.frais[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(f.libelle, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 4),
+                                Text("${f.montant.toStringAsFixed(0)} FCFA",
+                                    style: TextStyle(color: Colors.grey.shade600)),
+                                if (f.echeance != null)
+                                  Text("Échéance : ${f.echeance}",
+                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                              ],
+                            ),
+                          ),
+                          if (f.estPaye)
+                            const Chip(label: Text("Payé"), backgroundColor: Color(0xFFE6F0EA))
+                          else
+                            ElevatedButton(
+                              onPressed: () => _payer(f.id, f.resteAPayer),
+                              child: const Text("Payer"),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/commun/profil_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/commun/profil_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../utils/theme.dart';
+import '../auth/login_screen.dart';
+
+class ProfilScreen extends StatelessWidget {
+  const ProfilScreen({super.key});
+
+  Future<void> _deconnecter(BuildContext context) async {
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Déconnexion"),
+        content: const Text("Voulez-vous vraiment vous déconnecter ?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Annuler")),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Déconnexion")),
+        ],
+      ),
+    );
+    if (confirme != true) return;
+
+    if (!context.mounted) return;
+    await context.read<AuthProvider>().deconnecter();
+
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final utilisateur = context.watch<AuthProvider>().utilisateur;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Mon profil")),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Center(
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: AppTheme.bleu,
+                  child: Text(
+                    utilisateur != null
+                        ? "${utilisateur.prenom[0]}${utilisateur.nom[0]}"
+                        : "?",
+                    style: const TextStyle(fontSize: 22, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(utilisateur?.nomComplet ?? "",
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(utilisateur?.role ?? "", style: TextStyle(color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.phone_outlined),
+                  title: const Text("Téléphone"),
+                  subtitle: Text(utilisateur?.telephone ?? "Non renseigné"),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.email_outlined),
+                  title: const Text("Email"),
+                  subtitle: Text(utilisateur?.email ?? "Non renseigné"),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+          ElevatedButton.icon(
+            onPressed: () => _deconnecter(context),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.rouge),
+            icon: const Icon(Icons.logout),
+            label: const Text("Se déconnecter"),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/commun/messagerie_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/commun/messagerie_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/communication_provider.dart';
+import '../../utils/theme.dart';
+import 'conversation_screen.dart';
+
+class MessagerieScreen extends StatefulWidget {
+  const MessagerieScreen({super.key});
+
+  @override
+  State<MessagerieScreen> createState() => _MessagerieScreenState();
+}
+
+class _MessagerieScreenState extends State<MessagerieScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<CommunicationProvider>().chargerConversations(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<CommunicationProvider>();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Messagerie")),
+      body: provider.chargement
+          ? const Center(child: CircularProgressIndicator())
+          : provider.conversations.isEmpty
+              ? const Center(child: Text("Aucune conversation pour le moment."))
+              : ListView.separated(
+                  itemCount: provider.conversations.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final c = provider.conversations[index];
+                    final initiales = "${c.prenom.isNotEmpty ? c.prenom[0] : ''}${c.nom.isNotEmpty ? c.nom[0] : ''}";
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: AppTheme.vert.withOpacity(0.15),
+                        child: Text(initiales, style: const TextStyle(color: AppTheme.vert)),
+                      ),
+                      title: Text("${c.prenom} ${c.nom}"),
+                      subtitle: Text(
+                        c.dernierMessage ?? "",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: c.nonLus > 0
+                          ? CircleAvatar(
+                              radius: 10,
+                              backgroundColor: AppTheme.rouge,
+                              child: Text("${c.nonLus}",
+                                  style: const TextStyle(fontSize: 11, color: Colors.white)),
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => ConversationScreen(
+                            conversationId: c.conversationId,
+                            destinataireId: c.autreUtilisateurId,
+                            nomDestinataire: "${c.prenom} ${c.nom}",
+                          ),
+                        ));
+                      },
+                    );
+                  },
+                ),
+    );
+  }
+}
+
+
+========================================================================
+FICHIER : lib/screens/commun/conversation_screen.dart
+========================================================================
+
+// =========================================
+// lib/screens/commun/conversation_screen.dart
+// =========================================
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/communication_provider.dart';
+import '../../utils/theme.dart';
+
+class ConversationScreen extends StatefulWidget {
+  final int conversationId;
+  final int destinataireId;
+  final String nomDestinataire;
+
+  const ConversationScreen({
+    super.key,
+    required this.conversationId,
+    required this.destinataireId,
+    required this.nomDestinataire,
+  });
+
+  @override
+  State<ConversationScreen> createState() => _ConversationScreenState();
+}
+
+class _ConversationScreenState extends State<ConversationScreen> {
+  final _messageCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await context.read<CommunicationProvider>().chargerMessages(widget.conversationId);
+      _defilerVersLeBas();
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageCtrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _defilerVersLeBas() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+      }
+    });
+  }
+
+  Future<void> _envoyer() async {
+    final texte = _messageCtrl.text.trim();
+    if (texte.isEmpty) return;
+    _messageCtrl.clear();
+
+    final succes = await context.read<CommunicationProvider>().envoyerMessage(
+          widget.destinataireId, texte, widget.conversationId,
+        );
+
+    if (succes) _defilerVersLeBas();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<CommunicationProvider>();
+    final utilisateur = context.read<AuthProvider>().utilisateur;
+
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.nomDestinataire)),
+      body: Column(
+        children: [
+          Expanded(
+            child: provider.chargement
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    controller: _scrollCtrl,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: provider.messagesConversation.length,
+                    itemBuilder: (context, index) {
+                      final m = provider.messagesConversation[index];
+                      final estMoi = m.expediteurId == utilisateur?.id;
+                      return Align(
+                        alignment: estMoi ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                          decoration: BoxDecoration(
+                            color: estMoi ? AppTheme.bleu : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            m.contenu,
+                            style: TextStyle(color: estMoi ? Colors.white : Colors.black87),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageCtrl,
+                      decoration: const InputDecoration(hintText: "Écrire un message..."),
+                      onSubmitted: (_) => _envoyer(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.send, color: AppTheme.bleu),
+                    onPressed: _envoyer,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+========================================================================
+FIN DU FICHIER
+========================================================================
+
+PROCHAINES ÉTAPES POSSIBLES :
+1. Installer Flutter sur un PC (https://docs.flutter.dev/get-started/install)
+2. Créer le projet : flutter create ecole_la_bonte
+3. Recréer l'arborescence ci-dessus et coller chaque section dans son fichier
+4. flutter pub get
+5. flutter run (avec un émulateur ou téléphone branché en USB)
+6. Une fois prêt : flutter build apk --release
+   → le fichier .apk installable se trouve alors dans
+     build/app/outputs/flutter-apk/app-release.apk
+
+Dashboards Professeur, Assistant et Direction : pas encore écrits.
+Demande-les si tu veux compléter l'application.

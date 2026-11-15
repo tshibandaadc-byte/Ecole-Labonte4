@@ -1,0 +1,21 @@
+ÉCOLE LA BONTÉ — DOSSIER COMPLET
+==================================
+
+backend-python/     Backend recommandé (FastAPI). Voir son propre README.md.
+backend-nodejs/     Backend alternatif (Express), mêmes routes et même base SQL.
+portail-web.html    Portail étudiant navigable (menu latéral, cotes, LB-Pay...).
+app-mobile.html     Prototype mobile (dashboards par rôle, messagerie...).
+flutter-code-complet.txt   Code source Flutter (app Android/iOS native).
+TOUS-LES-CODES.pdf  Tout le code, dans un seul PDF imprimable.
+
+Corrections de sécurité et de fiabilité appliquées aux deux backends :
+- CORS restreint à une liste de domaines (variable CORS_ORIGINS dans .env),
+  au lieu d'accepter n'importe quel site ("*").
+- Le backend Python refuse de démarrer en production (ENVIRONMENT=prod)
+  si le secret JWT ou les domaines CORS sont restés à leur valeur par défaut.
+- Numéros de reçu et matricules élèves générés via des mécanismes SQL
+  atomiques (séquence + table de compteurs), pour qu'aucun doublon ne
+  puisse survenir si deux opérations arrivent en même temps.
+
+Pour lancer un backend : ouvre son dossier et suis son README.md.
+Pour ouvrir un prototype web : double-clique sur le fichier .html.
