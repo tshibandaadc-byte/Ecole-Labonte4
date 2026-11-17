@@ -985,8 +985,19 @@ def eleve_modifier(sid):
         option_scolaire=request.form.get("option_scolaire","Aucune").strip() or "Aucune"
         if niveau_scolaire and (not classe_valide(niveau_scolaire, classe_scolaire) or not option_valide(niveau_scolaire, option_scolaire)):
             abort(400)
-        for field in ("nom","promotion"):
-            setattr(s, field, request.form[field].strip())
+        nom_eleve=request.form.get("nom","").strip()
+        promotion_eleve=request.form.get("promotion","").strip()
+        try:
+            nombre_cours=int(request.form.get("nombre_cours") or 0)
+            credits=int(request.form.get("credits") or 0)
+        except (ValueError, TypeError):
+            flash("Le nombre de cours et les crédits doivent être des nombres valides.","error")
+            return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=[],niveaux=NIVEAUX_SCOLAIRES,options_secondaire=OPTIONS_SECONDAIRE)
+        if not nom_eleve or not promotion_eleve or not classe_scolaire or nombre_cours < 0 or credits < 0:
+            flash("Le nom, la promotion et la classe sont obligatoires. Les cours et crédits ne peuvent pas être négatifs.","error")
+            return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=[],niveaux=NIVEAUX_SCOLAIRES,options_secondaire=OPTIONS_SECONDAIRE)
+        s.nom=nom_eleve
+        s.promotion=promotion_eleve
         s.classe=classe_scolaire
         if niveau_scolaire:
             s.niveau_scolaire=niveau_scolaire
@@ -1005,21 +1016,27 @@ def eleve_modifier(sid):
         else:
             s.faculte=request.form.get("faculte",s.faculte).strip()
             s.filiere=request.form.get("filiere",s.filiere).strip()
-        s.nombre_cours=int(request.form.get("nombre_cours") or 0); s.credits=int(request.form.get("credits") or 0)
+        s.nombre_cours=nombre_cours; s.credits=credits
         photo=request.files.get("photo")
         if photo and photo.filename:
             ext=photo.filename.rsplit(".",1)[-1].lower()
             if ext not in ALLOWED: flash("Format photo invalide.","error"); return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
             filename=datetime.utcnow().strftime("%Y%m%d%H%M%S%f")+"_"+secure_filename(photo.filename)
             photo.save(UPLOADS/filename); s.photo=filename
-        db.session.commit(); flash("Dossier modifié.","success"); return redirect(url_for("eleve_detail",sid=s.id))
+        journaliser("Modification dossier élève","Student",
+            f"id={s.id}; nom={s.nom}; matricule={s.matricule}; classe={s.classe}; promotion={s.promotion}")
+        db.session.commit(); flash("Dossier modifié et modification enregistrée dans le journal.","success"); return redirect(url_for("eleve_detail",sid=s.id))
     return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
 
 @app.route("/eleves/<int:sid>/supprimer", methods=["POST"])
 @admin_only
 def eleve_supprimer(sid):
-    s=db.get_or_404(Student,sid); User.query.filter_by(student_id=sid).update({User.student_id: None}); db.session.delete(s); db.session.commit()
-    flash("Dossier supprimé.","success"); return redirect(url_for("eleves"))
+    s=db.get_or_404(Student,sid)
+    journaliser("Suppression dossier élève","Student",
+        f"id={s.id}; nom={s.nom}; matricule={s.matricule}; classe={s.classe}")
+    User.query.filter_by(student_id=sid).update({User.student_id: None})
+    db.session.delete(s); db.session.commit()
+    flash("Dossier supprimé et opération enregistrée dans le journal.","success"); return redirect(url_for("eleves"))
 
 @app.route("/notes", methods=["GET","POST"])
 @login_required
