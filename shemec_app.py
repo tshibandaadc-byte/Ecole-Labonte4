@@ -1812,7 +1812,7 @@ def affectations():
         annee = request.form.get("annee_academique", "").strip()
         if (not teacher or teacher.role != "enseignant" or
                 not cours or len(cours) > 140 or not classe or len(classe) > 80 or
-                not re.fullmatch(r"\\d{4}-\\d{4}", annee) or volume <= 0 or volume > 40):
+                not re.fullmatch(r"\d{4}-\d{4}", annee) or volume <= 0 or volume > 40):
             flash("Vérifiez l'enseignant, le cours, la classe, l'année et le volume horaire (1 à 40 heures).", "error")
         elif TeacherAssignment.query.filter_by(teacher_id=teacher.id, cours=cours, classe=classe, annee_academique=annee).first():
             flash("Cette affectation existe déjà pour cet enseignant.", "error")
