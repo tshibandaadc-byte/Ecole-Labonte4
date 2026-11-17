@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from markupsafe import escape
 from school_structure import NIVEAUX_SCOLAIRES, OPTIONS_SECONDAIRE, classe_valide, option_valide
-from assessment import appreciation, classement_classe, decision_passage, moyenne_notes, resultats_annuels
+from assessment import appreciation, classement_classe, classement_annuel, decision_passage, moyenne_notes, resultats_annuels
 
 ROOT = Path(__file__).resolve().parent
 UPLOADS = ROOT / "static" / "uploads"
@@ -571,7 +571,7 @@ DETAIL = """
 GRADES = """
 {% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Année académique<input name='annee_academique' value='2026-2027' pattern='[0-9]{4}-[0-9]{4}' required></label><label>Période<select name='periode' required><option>Trimestre 1</option><option>Trimestre 2</option><option>Trimestre 3</option><option>Examen</option><option>Examen trimestriel</option><option>Examen final</option></select></label><button class='btn primary'>Enregistrer</button></form></section>
 {% elif teacher %}<section class='panel'><h2>Saisir une note pour un cours affecté</h2><p>Vous ne pouvez évaluer que les élèves de vos classes et les cours qui vous sont attribués.</p><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.classe }}</option>{% endfor %}</select></label><label>Cours affecté<select name='assignment_id' required>{% for a in assignments %}<option value='{{ a.id }}'>{{ a.cours }} · {{ a.classe }} · {{ a.annee_academique }}</option>{% endfor %}</select></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<select name='periode' required><option>Trimestre 1</option><option>Trimestre 2</option><option>Trimestre 3</option><option>Examen</option></select></label><button class='btn primary' {% if not assignments or not students %}disabled{% endif %}>Enregistrer la note</button></form>{% if not assignments %}<p>Aucun cours ne vous est affecté. Contactez l'administration.</p>{% endif %}</section>{% endif %}
-<section class='panel'><h2>Résultats et notes</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in notes %}<tr><td>{{ n.eleve.nom }}</td><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td><b>{{ n.note }}/20</b></td></tr>{% else %}<tr><td colspan='4'>Aucune note disponible.</td></tr>{% endfor %}</table></div></section>
+<section class='panel'><div class='panel-head'><h2>Résultats et notes</h2><a class='btn outline' href='/resultats-annuels'>Résultats annuels</a></div><div class='table-wrap'><table><tr><th>Élève</th><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in notes %}<tr><td>{{ n.eleve.nom }}</td><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td><b>{{ n.note }}/20</b></td></tr>{% else %}<tr><td colspan='4'>Aucune note disponible.</td></tr>{% endfor %}</table></div></section>
 """
 
 BULLETIN = """
@@ -2426,7 +2426,7 @@ def resultats_annuels_page():
 
     active_year = AcademicYear.query.filter_by(active=True).first()
     year = request.args.get("annee", "").strip() or (active_year.label if active_year else "2026-2027")
-    if not re.fullmatch(r"\\d{4}-\\d{4}", year):
+    if not re.fullmatch(r"\d{4}-\d{4}", year):
         abort(400)
 
     lines = []
@@ -2436,11 +2436,11 @@ def resultats_annuels_page():
         grades = Grade.query.filter_by(student_id=student.id, annee_academique=year).all()
         summary = resultats_annuels(grades)
         lines = summary["matieres"]
-        class_grades = db.session.query(Grade.student_id, Grade.note).join(Student).filter(
+        class_grades = db.session.query(Grade.student_id, Grade.cours, Grade.note).join(Student).filter(
             Student.classe == student.classe,
             Grade.annee_academique == year
         ).all()
-        ranking = classement_classe(class_grades, student.id)
+        ranking = classement_annuel(class_grades, student.id)
 
     return page("Résultats annuels", """
     {% if admin or parent %}<section class='panel'><h2>Choisir un élève</h2><form method='get' class='inline-form'>
