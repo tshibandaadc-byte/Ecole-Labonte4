@@ -703,6 +703,7 @@ FEES = """
 <button class='btn primary'>Enregistrer le versement</button></form></section>
 {% endif %}
 <section class='panel'><h2>État des frais et soldes</h2>
+{% if admin %}<div class='stats-grid'><article class='stat'><small>Total attendu CDF</small><strong>{{ "{:,.0f}".format(totaux_frais.CDF.attendu).replace(",", " ") }} CDF</strong></article><article class='stat'><small>Reste à payer CDF</small><strong>{{ "{:,.0f}".format(totaux_frais.CDF.reste).replace(",", " ") }} CDF</strong></article><article class='stat'><small>Total attendu USD</small><strong>{{ "{:,.0f}".format(totaux_frais.USD.attendu).replace(",", " ") }} USD</strong></article><article class='stat'><small>Reste à payer USD</small><strong>{{ "{:,.0f}".format(totaux_frais.USD.reste).replace(",", " ") }} USD</strong></article></div><p class='actions no-print'><a class='btn outline' href='{{ url_for("fee_balances_csv", annee=annee) }}'>Exporter les soldes en CSV (Excel)</a></p>{% endif %}
 <div class='table-wrap'><table><tr><th>Élève</th><th>Classe</th><th>Année</th><th>Frais</th><th>Échéance</th><th>Total dû</th><th>Payé</th><th>Reste</th><th>Devise</th></tr>
 {% for row in soldes %}<tr><td>{{ row.eleve.nom }}</td><td>{{ row.eleve.classe }}</td><td>{{ row.frais.annee_academique }}</td><td>{{ row.frais.libelle }}</td><td>{{ row.frais.date_echeance.strftime('%d/%m/%Y') if row.frais.date_echeance else "Non définie" }}</td><td>{{ "{:,.0f}".format(row.total).replace(",", " ") }}</td><td>{{ "{:,.0f}".format(row.paye).replace(",", " ") }}</td><td><b>{{ "{:,.0f}".format(row.reste).replace(",", " ") }}</b></td><td>{{ row.frais.devise }}</td></tr>
 {% else %}<tr><td colspan='9'>Aucun frais applicable pour cette année académique.</td></tr>{% endfor %}</table></div></section>
@@ -1734,8 +1735,46 @@ def school_fees():
             soldes.append({"eleve": student, "frais": fee, "total": fee.montant,
                            "paye": paid, "reste": max(0, fee.montant - paid)})
     versements = payments_query.order_by(FeePayment.date_paiement.desc(), FeePayment.id.desc()).all()
+    totaux_frais = {currency: {"attendu": 0, "paye": 0, "reste": 0} for currency in ("CDF", "USD")}
+    for row in soldes:
+        currency = row["frais"].devise
+        if currency in totaux_frais:
+            totaux_frais[currency]["attendu"] += row["total"]
+            totaux_frais[currency]["paye"] += row["paye"]
+            totaux_frais[currency]["reste"] += row["reste"]
     return page("Frais par classe", FEES, admin=admin, students=students,
-                frais=fees, soldes=soldes, versements=versements, annee=year)
+                frais=fees, soldes=soldes, versements=versements, annee=year,
+                totaux_frais=totaux_frais)
+
+
+@app.route("/frais/export-soldes.csv")
+@login_required
+def fee_balances_csv():
+    if current_user.role != "admin":
+        abort(403)
+    year = request.args.get("annee", "2026-2027").strip()[:20]
+    students = Student.query.order_by(Student.nom).all()
+    fees = SchoolFee.query.filter_by(annee_academique=year).order_by(SchoolFee.classe, SchoolFee.libelle).all()
+    import io
+    text_buffer = io.StringIO(newline="")
+    writer = csv.writer(text_buffer, delimiter=";")
+    writer.writerow(["Année académique", "Élève", "Matricule", "Classe", "Frais", "Échéance",
+                     "Total dû", "Déjà payé", "Reste à payer", "Devise"])
+    for student in students:
+        for fee in fees:
+            if student.classe.strip().casefold() != fee.classe.strip().casefold():
+                continue
+            paid = db.session.query(db.func.coalesce(db.func.sum(FeePayment.montant), 0)).filter_by(
+                fee_id=fee.id, student_id=student.id).scalar()
+            paid = int(paid or 0)
+            writer.writerow([year, student.nom, student.matricule, student.classe, fee.libelle,
+                             fee.date_echeance.isoformat() if fee.date_echeance else "",
+                             fee.montant, paid, max(0, fee.montant-paid), fee.devise])
+    output = BytesIO()
+    output.write(("\\ufeff" + text_buffer.getvalue()).encode("utf-8"))
+    output.seek(0)
+    return send_file(output, mimetype="text/csv; charset=utf-8", as_attachment=True,
+                     download_name="soldes-frais-{}.csv".format(year.replace("/", "-")))
 
 
 @app.route("/frais/versement/<int:payment_id>/recu.pdf")
