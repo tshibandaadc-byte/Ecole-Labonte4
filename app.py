@@ -157,6 +157,8 @@ class AdmissionApplication(db.Model):
     promotion = db.Column(db.String(80), nullable=False)
     annee_academique = db.Column(db.String(20), nullable=False)
     telephone_parent = db.Column(db.String(40), nullable=True)
+    niveau_scolaire = db.Column(db.String(30), nullable=True)
+    option_scolaire = db.Column(db.String(80), nullable=True)
     statut = db.Column(db.String(20), nullable=False, default="En attente")
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=True)
     cree_le = db.Column(db.DateTime, default=datetime.utcnow)
@@ -659,30 +661,39 @@ FEES = """
 
 
 ADMISSION_FORM = """
-<section class='hero'><div><small>ÉCOLE SHEMEC · LUBUMBASHI</small><h2>Demande d'admission</h2><p>Remplissez les informations pour soumettre un dossier à l'administration.</p></div><span>✦</span></section>
+<section class='hero'><div><small>ÉCOLE SHEMEC · LUBUMBASHI</small><h2>Demande d'admission</h2><p>Inscription à la maternelle, au primaire ou au secondaire.</p></div><span>🇨🇩</span></section>
 <section class='panel'><form method='post' enctype='multipart/form-data' class='form-grid'>
 <label>Nom complet de l'élève *<input name='nom' required maxlength='160'></label>
 <label>Photo de l'élève *<input type='file' name='photo' accept='.jpg,.jpeg,.png,.webp' required></label>
-<label>Faculté *<select name='faculty_id' required><option value=''>Choisir</option>{% for f in faculties %}<option value='{{ f.id }}'>{{ f.code }} · {{ f.nom }}</option>{% endfor %}</select></label>
-<label>Filière *<select name='program_id' required><option value=''>Choisir</option>{% for f in faculties %}{% for p in f.filieres %}<option value='{{ p.id }}'>{{ f.nom }} — {{ p.code }} · {{ p.nom }}</option>{% endfor %}{% endfor %}</select></label>
-<label>Classe demandée *<input name='classe' required></label>
-<label>Promotion *<input name='promotion' required placeholder='Ex. 1re année'></label>
-<label>Année académique *<input name='annee_academique' required value='2026-2027'></label>
+<label>Cycle scolaire *<select name='niveau_scolaire' id='admission-level' required><option value=''>Choisir le cycle</option>{% for niveau in niveaux %}<option value='{{ niveau }}'>{{ niveau }}</option>{% endfor %}</select></label>
+<label>Classe demandée *<select name='classe' id='admission-class' required><option value=''>Choisir d'abord le cycle</option></select></label>
+<label id='admission-option-wrap' hidden>Option / section<select name='option_scolaire' id='admission-option'><option value=''>Choisir une option</option>{% for option in options_secondaire %}<option>{{ option }}</option>{% endfor %}</select></label>
+<label>Année académique *<input name='annee_academique' required value='2026-2027' pattern='[0-9]{4}-[0-9]{4}'></label>
 <label>Téléphone du parent/tuteur<input name='telephone_parent' maxlength='40'></label>
 <div class='actions'><button class='btn primary'>Soumettre la demande</button></div>
 </form></section>
+<script>
+(()=>{const levels={{ niveaux|tojson }};const options={{ niveaux_scolaires|tojson }};const level=document.getElementById('admission-level');const cls=document.getElementById('admission-class');const opt=document.getElementById('admission-option');const wrap=document.getElementById('admission-option-wrap');function sync(){cls.innerHTML='<option value="">Choisir une classe</option>';for(const item of (options[level.value]||[])){const o=document.createElement('option');o.value=item;o.textContent=item;cls.appendChild(o)}wrap.hidden=level.value!=='Secondaire';opt.required=level.value==='Secondaire';if(!opt.required)opt.value=''}level.addEventListener('change',sync);})();
+</script>
 """
 ADMISSIONS = """
-<section class='panel'><h2>Dossiers d'admission</h2><div class='table-wrap'><table><tr><th>Date</th><th>Candidat</th><th>Faculté / Filière</th><th>Classe</th><th>Année</th><th>Statut</th><th>Action</th></tr>
-{% for a in demandes %}<tr><td>{{ a.cree_le.strftime('%d/%m/%Y') }}</td><td>{{ a.nom }}</td><td>{{ a.faculty.nom }} / {{ a.program.nom }}</td><td>{{ a.classe }}</td><td>{{ a.annee_academique }}</td><td>{{ a.statut }}</td><td>{% if a.statut == 'En attente' %}<form method='post' class='inline-form'><input type='hidden' name='application_id' value='{{ a.id }}'><button class='btn primary' name='action' value='accepter'>Accepter</button><button class='btn danger' name='action' value='refuser'>Refuser</button></form>{% elif a.student_id %}<a href='/eleves/{{ a.student_id }}/inscription.pdf'>Document PDF</a>{% endif %}</td></tr>
+<section class='panel'><h2>Dossiers d'admission</h2><div class='table-wrap'><table><tr><th>Date</th><th>Candidat</th><th>Cycle / option</th><th>Classe</th><th>Année</th><th>Statut</th><th>Action</th></tr>
+{% for a in demandes %}<tr><td>{{ a.cree_le.strftime('%d/%m/%Y') }}</td><td>{{ a.nom }}</td><td>{{ a.niveau_scolaire or (a.faculty.nom if a.faculty else 'Ancien dossier') }}{% if a.option_scolaire %} · {{ a.option_scolaire }}{% elif a.program %} · {{ a.program.nom }}{% endif %}</td><td>{{ a.classe }}</td><td>{{ a.annee_academique }}</td><td>{{ a.statut }}</td><td>{% if a.statut == 'En attente' %}<form method='post' class='inline-form'><input type='hidden' name='application_id' value='{{ a.id }}'><button class='btn primary' name='action' value='accepter'>Accepter</button><button class='btn danger' name='action' value='refuser'>Refuser</button></form>{% elif a.student_id %}<a href='/eleves/{{ a.student_id }}/inscription.pdf'>Document PDF</a>{% endif %}</td></tr>
 {% else %}<tr><td colspan='7'>Aucune demande.</td></tr>{% endfor %}</table></div></section>
 """
 REENROLLMENTS = """
-<section class='panel'><h2>Enregistrer une réinscription</h2><form method='post' class='inline-form'>
+<section class='panel'><h2>Enregistrer une réinscription</h2><form method='post' class='form-grid'>
 <label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }} · {{ s.classe }}</option>{% endfor %}</select></label>
-<label>Année académique<input name='annee_academique' required value='2026-2027'></label>
-<label>Promotion<input name='promotion' required></label><label>Nouvelle classe<input name='classe' required></label>
+<label>Année académique<input name='annee_academique' required value='2026-2027' pattern='[0-9]{4}-[0-9]{4}'></label>
+<label>Cycle scolaire<select name='niveau_scolaire' id='reenroll-level'><option value=''>Conserver l'ancien dossier</option>{% for niveau in niveaux %}<option value='{{ niveau }}'>{{ niveau }}</option>{% endfor %}</select></label>
+<label>Nouvelle classe<select name='classe' id='reenroll-class' required><option value=''>Choisir le cycle ou saisir l'ancien niveau</option></select></label>
+<label id='reenroll-option-wrap' hidden>Option / section<select name='option_scolaire' id='reenroll-option'><option value=''>Choisir une option</option>{% for option in options_secondaire %}<option>{{ option }}</option>{% endfor %}</select></label>
+<label>Promotion / année<input name='promotion' required></label>
 <button class='btn primary'>Confirmer la réinscription</button></form></section>
+<script>
+(()=>{const options={{ niveaux_scolaires|tojson }};const level=document.getElementById('reenroll-level');const cls=document.getElementById('reenroll-class');const opt=document.getElementById('reenroll-option');const wrap=document.getElementById('reenroll-option-wrap');function sync(){cls.innerHTML='<option value="">Choisir une classe</option>';if(!level.value){const o=document.createElement('option');o.value='Ancienne classe';o.textContent='Ancienne classe (à préciser dans le champ promotion si nécessaire)';cls.appendChild(o)}for(const item of (options[level.value]||[])){const o=document.createElement('option');o.value=item;o.textContent=item;cls.appendChild(o)}wrap.hidden=level.value!=='Secondaire';opt.required=level.value==='Secondaire';if(!opt.required)opt.value=''}level.addEventListener('change',sync);})();
+</script>
+
 <section class='panel'><h2>Historique des inscriptions</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Année</th><th>Promotion</th><th>Classe</th><th>Date</th><th>Document</th></tr>
 {% for e in records %}<tr><td>{{ e.student.nom }}</td><td>{{ e.student.matricule }}</td><td>{{ e.annee_academique }}</td><td>{{ e.promotion }}</td><td>{{ e.classe }}</td><td>{{ e.date_inscription.strftime('%d/%m/%Y') }}</td><td><a href='/eleves/{{ e.student_id }}/inscription.pdf'>PDF</a></td></tr>{% else %}<tr><td colspan='7'>Aucune réinscription.</td></tr>{% endfor %}</table></div></section>
 """
@@ -1422,38 +1433,48 @@ def fee_payment_receipt(payment_id):
 
 @app.route("/admission", methods=["GET", "POST"])
 def admission_public():
+    context = dict(niveaux=NIVEAUX_SCOLAIRES.keys(), niveaux_scolaires=NIVEAUX_SCOLAIRES,
+                   options_secondaire=OPTIONS_SECONDAIRE)
     if request.method == "POST":
         nom = request.form.get("nom", "").strip()
+        niveau = request.form.get("niveau_scolaire", "").strip()
         classe = request.form.get("classe", "").strip()
-        promotion = request.form.get("promotion", "").strip()
+        option = request.form.get("option_scolaire", "").strip()
         year = request.form.get("annee_academique", "").strip()
         phone = request.form.get("telephone_parent", "").strip()
         photo = request.files.get("photo")
-        try:
-            faculty_id = int(request.form.get("faculty_id", ""))
-            program_id = int(request.form.get("program_id", ""))
-        except (TypeError, ValueError):
-            abort(400)
-        faculty = db.session.get(FacultyCatalog, faculty_id)
-        program = db.session.get(ProgramCatalog, program_id)
-        if not all([nom, classe, promotion, year, photo, photo.filename, faculty, program]) or program.faculty_id != faculty.id or len(year) > 20:
-            flash("Vérifiez les champs obligatoires et la faculté/filière choisies.", "error")
-            return page("Demande d'admission", ADMISSION_FORM, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+        if (not nom or len(nom) > 160 or not classe_valide(niveau, classe)
+                or not option_valide(niveau, option) or not re.fullmatch(r"\\d{4}-\\d{4}", year)
+                or not photo or not photo.filename):
+            flash("Vérifiez le cycle, la classe, l'option et les champs obligatoires.", "error")
+            return page("Demande d'admission", ADMISSION_FORM, **context)
         ext = photo.filename.rsplit(".", 1)[-1].lower()
         if ext not in ALLOWED:
             flash("Format photo accepté : JPG, PNG ou WEBP.", "error")
-            return page("Demande d'admission", ADMISSION_FORM, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            return page("Demande d'admission", ADMISSION_FORM, **context)
+        # Les deux clés étrangères historiques restent renseignées pour ne pas casser
+        # les anciens schémas SQLite et les anciens dossiers universitaires.
+        faculty = FacultyCatalog.query.filter_by(code="90").first()
+        if not faculty:
+            faculty = FacultyCatalog(code="90", nom="Enseignement scolaire")
+            db.session.add(faculty)
+            db.session.flush()
+        program = ProgramCatalog.query.filter_by(faculty_id=faculty.id, code="01").first()
+        if not program:
+            program = ProgramCatalog(code="01", nom="Cycle scolaire", faculty_id=faculty.id)
+            db.session.add(program)
+            db.session.flush()
         filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
         photo.save(UPLOADS / filename)
         application = AdmissionApplication(nom=nom, photo=filename, faculty_id=faculty.id,
-            program_id=program.id, classe=classe, promotion=promotion, annee_academique=year,
-            telephone_parent=phone or None)
+            program_id=program.id, classe=classe, promotion=classe, annee_academique=year,
+            telephone_parent=phone or None, niveau_scolaire=niveau,
+            option_scolaire=option if niveau == "Secondaire" else None)
         db.session.add(application)
         db.session.commit()
         flash("Demande reçue. L'administration étudiera votre dossier.", "success")
         return redirect(url_for("admission_public"))
-    return page("Demande d'admission", ADMISSION_FORM,
-                faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+    return page("Demande d'admission", ADMISSION_FORM, **context)
 
 
 @app.route("/admissions", methods=["GET", "POST"])
@@ -1475,15 +1496,23 @@ def admissions():
         else:
             faculty, program = application.faculty, application.program
             if not faculty or not program or program.faculty_id != faculty.id:
-                abort(400, description="Le catalogue faculté/filière de cette demande est invalide.")
+                abort(400, description="Le catalogue de cette demande est invalide.")
             try:
                 academic_year = int(application.annee_academique[:4])
             except ValueError:
                 abort(400, description="L'année académique doit commencer par une année à quatre chiffres.")
             matricule = generer_matricule(academic_year, faculty.code, program.code)
+            is_school = bool(application.niveau_scolaire)
+            if is_school and (not classe_valide(application.niveau_scolaire, application.classe)
+                              or not option_valide(application.niveau_scolaire, application.option_scolaire or "")):
+                abort(400, description="Le cycle, la classe ou l'option de cette demande est invalide.")
             student = Student(matricule=matricule, annee_inscription=academic_year,
                 code_faculte=faculty.code, code_filiere=program.code, nom=application.nom,
-                photo=application.photo, faculte=faculty.nom, filiere=program.nom,
+                photo=application.photo,
+                faculte=application.niveau_scolaire or faculty.nom,
+                filiere=(application.option_scolaire or "Général") if is_school else program.nom,
+                niveau_scolaire=application.niveau_scolaire,
+                option_scolaire=application.option_scolaire,
                 promotion=application.promotion, classe=application.classe)
             db.session.add(student)
             db.session.flush()
@@ -1510,22 +1539,36 @@ def reinscriptions():
         year = request.form.get("annee_academique", "").strip()
         promotion = request.form.get("promotion", "").strip()
         classe = request.form.get("classe", "").strip()
-        if not student or not year or len(year) > 20 or not promotion or not classe:
+        niveau = request.form.get("niveau_scolaire", "").strip()
+        option = request.form.get("option_scolaire", "").strip()
+        if (not student or not re.fullmatch(r"\\d{4}-\\d{4}", year)
+                or not promotion or not classe):
             abort(400)
+        if niveau and (not classe_valide(niveau, classe) or not option_valide(niveau, option)):
+            abort(400, description="La classe ou l'option ne correspond pas au cycle choisi.")
+        if not niveau and student.niveau_scolaire and not classe_valide(student.niveau_scolaire, classe):
+            abort(400, description="Choisissez une classe valide pour le cycle actuel.")
         if Enrollment.query.filter_by(student_id=student.id, annee_academique=year).first():
             flash("Cet élève est déjà inscrit pour cette année académique.", "warning")
         else:
             enrollment = Enrollment(student_id=student.id, annee_academique=year,
                                     promotion=promotion, classe=classe, statut="Réinscrit")
-            student.annee_inscription = int(year[:4]) if year[:4].isdigit() else student.annee_inscription
+            student.annee_inscription = int(year[:4])
             student.promotion, student.classe = promotion, classe
+            if niveau:
+                student.niveau_scolaire = niveau
+                student.option_scolaire = option if niveau == "Secondaire" else None
+                student.faculte = niveau
+                student.filiere = option if niveau == "Secondaire" else "Général"
             db.session.add(enrollment)
             db.session.commit()
             flash("Réinscription enregistrée.", "success")
         return redirect(url_for("reinscriptions"))
     return page("Réinscriptions", REENROLLMENTS,
         students=Student.query.order_by(Student.nom).all(),
-        records=Enrollment.query.join(Student).order_by(Enrollment.date_inscription.desc(), Enrollment.id.desc()).all())
+        records=Enrollment.query.join(Student).order_by(Enrollment.date_inscription.desc(), Enrollment.id.desc()).all(),
+        niveaux=NIVEAUX_SCOLAIRES.keys(), niveaux_scolaires=NIVEAUX_SCOLAIRES,
+        options_secondaire=OPTIONS_SECONDAIRE)
 
 
 @app.route("/eleves/<int:sid>/inscription.pdf")
@@ -2353,6 +2396,7 @@ with app.app_context():
     insp=inspect(db.engine)
     for table, columns in {
         "student": {"annee_inscription":"INTEGER","code_faculte":"VARCHAR(2)","code_filiere":"VARCHAR(2)","niveau_scolaire":"VARCHAR(30)","option_scolaire":"VARCHAR(80)"},
+        "admission_application": {"niveau_scolaire":"VARCHAR(30)","option_scolaire":"VARCHAR(80)"},
         "grade": {"annee_academique":"VARCHAR(20) DEFAULT '2026-2027'","promotion":"VARCHAR(80) DEFAULT ''"},
         "payment": {"devise":"VARCHAR(3) NOT NULL DEFAULT 'CDF'"}
     }.items():
