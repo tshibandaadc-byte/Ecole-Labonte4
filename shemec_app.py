@@ -1183,12 +1183,84 @@ def bulletin_pdf():
             ("BOX",(0,0),(-1,-1),.6,gold),("INNERGRID",(0,0),(-1,-1),.4,colors.HexColor("#d5dfd9")),
             ("FONTSIZE",(0,0),(-1,-1),9),("TOPPADDING",(0,0),(-1,-1),8),
             ("BOTTOMPADDING",(0,0),(-1,-1),8)]))
-        story += [st, Spacer(1,28)]
+        story += [st, Spacer(1,8)]
+        period_results = db.session.query(Grade.student_id, Grade.note).join(Student).filter(
+            Student.classe == student.classe,
+            Grade.annee_academique == year,
+            Grade.periode == period
+        ).all()
+        period_rank = classement_classe(period_results, student.id)
+        rank_label = ("{}e / {} élève(s)".format(period_rank["rang"], period_rank["effectif"])
+                      if period_rank["rang"] is not None else "Non classé")
+        story.append(Paragraph("<b>RANG DANS LA CLASSE :</b> " + escape(rank_label), styles["Normal"]))
+        story.append(Spacer(1,20))
         sig=Table([["Le titulaire","La Direction"],["\n\n________________________","\n\n________________________"]],
                   colWidths=[87*mm,87*mm])
         sig.setStyle(TableStyle([("ALIGN",(0,0),(-1,-1),"CENTER"),
             ("TEXTCOLOR",(0,0),(-1,0),green),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold")]))
         story.append(sig)
+    # Synthèse annuelle : moyenne par matière et rang dans la classe.
+    for annual_year in sorted({n.annee_academique or "Non précisée" for n in notes}):
+        annual_notes = [n for n in notes if (n.annee_academique or "Non précisée") == annual_year]
+        annual = resultats_annuels(annual_notes)
+        annual_class_rows = db.session.query(
+            Grade.student_id, Grade.cours, Grade.note
+        ).join(Student).filter(
+            Student.classe == student.classe,
+            Grade.annee_academique == annual_year
+        ).all()
+        annual_rank = classement_annuel(annual_class_rows, student.id)
+        story.append(PageBreak())
+        story += [
+            Paragraph("ÉCOLE SHEMEC", styles["School"]),
+            Paragraph("SYNTHÈSE ANNUELLE · " + escape(annual_year), styles["BulletinTitle"]),
+            Paragraph("<b>Élève :</b> " + escape(student.nom) +
+                      " &nbsp;&nbsp; <b>Classe :</b> " + escape(student.classe), styles["Normal"]),
+            Spacer(1, 10)
+        ]
+        annual_data = [["MATIÈRE", "MOYENNE ANNUELLE /20", "NOTES SAISIES"]]
+        annual_data += [[Paragraph(escape(row["matiere"]), styles["Normal"]),
+                         ("{:.2f}".format(row["moyenne"]) if row["moyenne"] is not None else "—"),
+                         str(row["nombre"])] for row in annual["matieres"]]
+        annual_table = Table(annual_data, colWidths=[100*mm, 45*mm, 35*mm], repeatRows=1)
+        annual_table.setStyle(TableStyle([
+            ("BACKGROUND",(0,0),(-1,0),green), ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+            ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+            ("GRID",(0,0),(-1,-1),.5,colors.HexColor("#b9c8bf")),
+            ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#f6f8f6")]),
+            ("ALIGN",(1,1),(-1,-1),"CENTER"), ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+            ("FONTSIZE",(0,0),(-1,-1),9), ("TOPPADDING",(0,0),(-1,-1),7),
+            ("BOTTOMPADDING",(0,0),(-1,-1),7)
+        ]))
+        story += [annual_table, Spacer(1,12)]
+        annual_average = annual["moyenne_generale"]
+        annual_rank_label = ("{}e / {} élève(s)".format(annual_rank["rang"], annual_rank["effectif"])
+                             if annual_rank["rang"] is not None else "Non classé")
+        annual_summary = Table([
+            ["MOYENNE ANNUELLE", "APPRÉCIATION", "RANG ANNUEL"],
+            [("{:.2f}/20".format(annual_average) if annual_average is not None else "—"),
+             appreciation(annual_average), annual_rank_label]
+        ], colWidths=[60*mm,60*mm,60*mm])
+        annual_summary.setStyle(TableStyle([
+            ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#eaf1ec")),
+            ("TEXTCOLOR",(0,0),(-1,0),green), ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+            ("FONTNAME",(0,1),(-1,1),"Helvetica-Bold"), ("ALIGN",(0,0),(-1,-1),"CENTER"),
+            ("BOX",(0,0),(-1,-1),.6,gold), ("INNERGRID",(0,0),(-1,-1),.4,colors.HexColor("#d5dfd9")),
+            ("FONTSIZE",(0,0),(-1,-1),9), ("TOPPADDING",(0,0),(-1,-1),9),
+            ("BOTTOMPADDING",(0,0),(-1,-1),9)
+        ]))
+        story += [annual_summary, Spacer(1,24),
+                  Paragraph("La moyenne annuelle est calculée à partir des notes enregistrées, sans coefficient non configuré.", styles["Normal"]),
+                  Spacer(1,28)]
+        annual_signatures = Table([["Le titulaire","La Direction"],
+            ["\n\n________________________","\n\n________________________"]], colWidths=[87*mm,87*mm])
+        annual_signatures.setStyle(TableStyle([
+            ("ALIGN",(0,0),(-1,-1),"CENTER"),
+            ("TEXTCOLOR",(0,0),(-1,0),green),
+            ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold")
+        ]))
+        story.append(annual_signatures)
+
     doc.build(story,onFirstPage=footer,onLaterPages=footer)
     buffer.seek(0)
     filename="bulletin-"+re.sub(r"[^A-Za-z0-9_-]+","-",student.matricule)+".pdf"
