@@ -22,7 +22,7 @@ register_progression_routes(
 register_class_routes(
     app, db, Student, User, TeacherAssignment, AcademicYear, page
 )
-register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page)
+register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page, AcademicYear)
 
 core.BASE = core.BASE.replace(
     "<a href='/horaire'>▦ Emploi du temps</a>",
