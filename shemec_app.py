@@ -2399,6 +2399,9 @@ def affectations():
             db.session.add(TeacherAssignment(teacher_id=teacher.id, cours=cours, classe=classe,
                 annee_academique=annee, volume_horaire=volume))
             db.session.commit()
+            journaliser("Affectation d'un cours", "TeacherAssignment",
+                f"enseignant={teacher.nom}; cours={cours}; classe={classe}; année={annee}; volume={volume} h")
+            db.session.commit()
             flash("Cours affecté à l'enseignant avec succès.", "success")
         return redirect(url_for("affectations"))
     template = """
@@ -2428,7 +2431,7 @@ def rapport_enseignants():
     active_year = AcademicYear.query.filter_by(active=True).first()
     if not annee:
         annee = active_year.label if active_year else "2026-2027"
-    if not re.fullmatch(r"\\d{4}-\\d{4}", annee):
+    if not re.fullmatch(r"\d{4}-\d{4}", annee):
         abort(400)
 
     teachers = User.query.filter_by(role="enseignant").order_by(User.nom).all()
