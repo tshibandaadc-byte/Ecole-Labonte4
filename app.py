@@ -2,6 +2,7 @@
 import shemec_app as core
 from shemec_app import *
 from progression import register_progression_routes
+from class_management import register_class_routes
 
 # Ajoute le nouvel écran dans la navigation commune sans toucher aux autres pages.
 core.BASE = core.BASE.replace(
@@ -11,6 +12,9 @@ core.BASE = core.BASE.replace(
 
 register_progression_routes(
     app, db, Student, Grade, Enrollment, StudentHistory, AcademicYear, page
+)
+register_class_routes(
+    app, db, Student, User, TeacherAssignment, AcademicYear, page
 )
 
 if __name__ == "__main__":
