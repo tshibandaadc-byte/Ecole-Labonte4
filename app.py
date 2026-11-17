@@ -138,7 +138,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École La Bonté</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/historique'>▤ Historique académique</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -463,6 +463,60 @@ def comptes():
         return redirect(url_for("comptes"))
     return page("Comptes utilisateurs",ACCOUNTS,users=User.query.order_by(User.nom).all(),
                 students=Student.query.order_by(Student.nom).all())
+
+
+@app.route("/historique", methods=["GET","POST"])
+@admin_only
+def historique():
+    if request.method == "POST":
+        try:
+            student_id = int(request.form["student_id"])
+            credits = int(request.form.get("credits") or 0)
+            note_raw = request.form.get("note", "").strip()
+            note = float(note_raw) if note_raw else None
+        except (ValueError, TypeError):
+            flash("Vérifiez l'élève, les crédits et la note.", "error")
+            return redirect(url_for("historique"))
+        student = db.session.get(Student, student_id)
+        annee = request.form.get("annee_academique", "").strip()
+        promotion = request.form.get("promotion", "").strip()
+        faculte = request.form.get("faculte", "").strip()
+        filiere = request.form.get("filiere", "").strip()
+        cours = request.form.get("cours", "").strip()
+        decision = request.form.get("decision", "").strip()
+        if not student or not all([annee, promotion, faculte, filiere, cours]) or credits < 0 or (note is not None and not 0 <= note <= 20):
+            flash("Données invalides. La note doit être comprise entre 0 et 20.", "error")
+            return redirect(url_for("historique"))
+        record = StudentHistory(student_id=student.id, annee_academique=annee,
+            promotion=promotion, faculte=faculte, filiere=filiere, cours=cours,
+            credits=credits, note=note, decision=decision)
+        db.session.add(record)
+        db.session.commit()
+        flash("Ligne d'historique académique enregistrée.", "success")
+        return redirect(url_for("historique"))
+    template = """
+    <section class='panel'><h2>Ajouter une archive académique</h2>
+    <p>Enregistrez le parcours annuel d'un élève : année, promotion, cours, crédits, note et décision.</p>
+    <form method='post' class='form-grid'>
+      <label>Élève *<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label>
+      <label>Année académique *<input name='annee_academique' required placeholder='2026-2027'></label>
+      <label>Promotion *<input name='promotion' required placeholder='G1 / L1 / Promotion'></label>
+      <label>Faculté *<input name='faculte' required></label>
+      <label>Filière *<input name='filiere' required></label>
+      <label>Cours *<input name='cours' required></label>
+      <label>Crédits<input type='number' name='credits' min='0' value='0'></label>
+      <label>Note / 20<input type='number' name='note' min='0' max='20' step='.01'></label>
+      <label>Décision<input name='decision' placeholder='Admis, Ajourné…'></label>
+      <div class='actions'><button class='btn primary'>Enregistrer l'archive</button></div>
+    </form></section>
+    <section class='panel'><h2>Archives enregistrées</h2>
+    <div class='table-wrap'><table><tr><th>Élève</th><th>Année</th><th>Promotion</th><th>Faculté / Filière</th><th>Cours</th><th>Crédits</th><th>Note</th><th>Décision</th></tr>
+    {% for h in records %}<tr><td>{{ h.student.nom }}</td><td>{{ h.annee_academique }}</td><td>{{ h.promotion }}</td><td>{{ h.faculte }} / {{ h.filiere }}</td><td>{{ h.cours }}</td><td>{{ h.credits }}</td><td>{{ h.note if h.note is not none else '—' }}</td><td>{{ h.decision or '—' }}</td></tr>
+    {% else %}<tr><td colspan='8'>Aucune archive enregistrée.</td></tr>{% endfor %}</table></div></section>
+    """
+    return page("Historique académique", template,
+        students=Student.query.order_by(Student.nom).all(),
+        records=StudentHistory.query.join(Student).order_by(StudentHistory.annee_academique.desc(), Student.nom).all())
 
 @app.route("/manifest.json")
 def manifest(): return send_from_directory(ROOT/"static","manifest.json")
