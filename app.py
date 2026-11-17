@@ -6,6 +6,11 @@ from class_management import register_class_routes
 
 # Ajoute le nouvel écran dans la navigation commune sans toucher aux autres pages.
 core.BASE = core.BASE.replace(
+    "<a href='/eleves'>♙ Élèves</a>",
+    "<a href='/eleves'>♙ Élèves</a><a href='/classes'>▦ Classes & titulaires</a>"
+)
+
+core.BASE = core.BASE.replace(
     "<a href='/historique'>▤ Historique académique</a>",
     "<a href='/historique'>▤ Historique académique</a><a href='/passages'>↗ Passages de classe</a>"
 )
