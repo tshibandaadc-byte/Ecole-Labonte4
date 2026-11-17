@@ -135,12 +135,12 @@ def matricule_valide(value):
 BASE = """
 <!doctype html><html lang='fr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
-<title>{{ title }} · École Shemec</title></head><body>
-{% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE SHEMEC<small>ESPACE SCOLAIRE</small></span></a>
+<title>{{ title }} · École La Bonté</title></head><body>
+{% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
 <nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a>{% if current_user.role=='admin' %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
-<main class='main'><header><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
+<main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
 {% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}
 {{ content|safe }}</main><nav class='bottom-nav'><a href='/'>Accueil</a>{% if current_user.role=='admin' %}<a href='/eleves'>Élèves</a>{% endif %}<a href='/notes'>Notes</a><a href='/messages'>Messages</a><a href='/finances'>Finances</a></nav></div>
 {% else %}{% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}{{ content|safe }}{% endif %}
@@ -152,7 +152,7 @@ def page(title, template, **context):
     return render_template_string(BASE, title=title, content=content)
 
 LOGIN = """
-<div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><small class='kicker'>BIENVENUE À</small><h1>École Shemec</h1><p>Votre espace scolaire numérique.</p>
+<div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><small class='kicker'>BIENVENUE À</small><h1>École La Bonté</h1><p>Votre espace scolaire numérique.</p>
 <label>Matricule ou adresse e-mail<input name='identifier' required autocomplete='username'></label>
 <label>Mot de passe<input type='password' name='password' required autocomplete='current-password'></label>
 <button class='btn primary wide'>Se connecter</button><a href='/creer-compte-eleve'>Créer un compte Élève – École La Bonté, Chemègue, Lubumbashi</a><small class='muted'>Élèves · Parents · Enseignants · Administration</small></form></div>
@@ -295,11 +295,11 @@ def eleve_nouveau():
         photo = request.files.get("photo")
         if not photo or not photo.filename:
             flash("La photo de profil est obligatoire.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule=matricule_suivant())
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="")
         ext = photo.filename.rsplit(".",1)[-1].lower()
         if ext not in ALLOWED:
             flash("Format accepté : JPG, PNG ou WEBP.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule=matricule_suivant())
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="")
         filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
         photo.save(UPLOADS / filename)
         matricule=request.form.get("matricule","").strip()
@@ -315,7 +315,7 @@ def eleve_nouveau():
         db.session.add(s); db.session.commit()
         flash("Inscription enregistrée : " + s.matricule, "success")
         return redirect(url_for("eleve_detail", sid=s.id))
-    return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule=matricule_suivant())
+    return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="")
 
 @app.route("/eleves/<int:sid>")
 @admin_only
