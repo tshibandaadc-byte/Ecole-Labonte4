@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from markupsafe import escape
 from school_structure import NIVEAUX_SCOLAIRES, OPTIONS_SECONDAIRE, classe_valide, option_valide
-from assessment import appreciation, classement_classe, decision_passage, moyenne_notes
+from assessment import appreciation, classement_classe, decision_passage, moyenne_notes, resultats_annuels
 
 ROOT = Path(__file__).resolve().parent
 UPLOADS = ROOT / "static" / "uploads"
@@ -569,7 +569,7 @@ DETAIL = """
 <div class='actions'><a class='btn primary' href='/eleves/{{ s.id }}/carte'>Carte élève / QR code</a><a class='btn outline' href='/eleves/{{ s.id }}/inscription.pdf'>Document d'inscription PDF</a><a class='btn primary' href='/eleves/{{ s.id }}/modifier'>Modifier</a><form method='post' action='/eleves/{{ s.id }}/supprimer' onsubmit="return confirm('Supprimer ce dossier ?')"><button class='btn danger'>Supprimer</button></form></div></section>
 """
 GRADES = """
-{% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Année académique<input name='annee_academique' value='2026-2027' pattern='[0-9]{4}-[0-9]{4}' required></label><label>Période<select name='periode' required><option>Trimestre 1</option><option>Trimestre 2</option><option>Trimestre 3</option><option>Examen</option></select></label><button class='btn primary'>Enregistrer</button></form></section>
+{% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Année académique<input name='annee_academique' value='2026-2027' pattern='[0-9]{4}-[0-9]{4}' required></label><label>Période<select name='periode' required><option>Trimestre 1</option><option>Trimestre 2</option><option>Trimestre 3</option><option>Examen</option><option>Examen trimestriel</option><option>Examen final</option></select></label><button class='btn primary'>Enregistrer</button></form></section>
 {% elif teacher %}<section class='panel'><h2>Saisir une note pour un cours affecté</h2><p>Vous ne pouvez évaluer que les élèves de vos classes et les cours qui vous sont attribués.</p><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.classe }}</option>{% endfor %}</select></label><label>Cours affecté<select name='assignment_id' required>{% for a in assignments %}<option value='{{ a.id }}'>{{ a.cours }} · {{ a.classe }} · {{ a.annee_academique }}</option>{% endfor %}</select></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<select name='periode' required><option>Trimestre 1</option><option>Trimestre 2</option><option>Trimestre 3</option><option>Examen</option></select></label><button class='btn primary' {% if not assignments or not students %}disabled{% endif %}>Enregistrer la note</button></form>{% if not assignments %}<p>Aucun cours ne vous est affecté. Contactez l'administration.</p>{% endif %}</section>{% endif %}
 <section class='panel'><h2>Résultats et notes</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in notes %}<tr><td>{{ n.eleve.nom }}</td><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td><b>{{ n.note }}/20</b></td></tr>{% else %}<tr><td colspan='4'>Aucune note disponible.</td></tr>{% endfor %}</table></div></section>
 """
@@ -2386,6 +2386,81 @@ def comptabilite():
 def journal():
     logs=AuditLog.query.order_by(AuditLog.cree_le.desc()).limit(250).all()
     return page("Journal des opérations", """<section class='panel'><div class='table-wrap'><table><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Entité</th><th>Détails</th><th>IP</th></tr>{% for x in logs %}<tr><td>{{ x.cree_le.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ x.user.nom if x.user else 'Système' }}</td><td>{{ x.action }}</td><td>{{ x.entite }}</td><td>{{ x.details or '' }}</td><td>{{ x.ip or '' }}</td></tr>{% else %}<tr><td colspan='6'>Aucune opération.</td></tr>{% endfor %}</table></div></section>""", logs=logs)
+
+
+@app.route("/resultats-annuels")
+@login_required
+def resultats_annuels_page():
+    is_admin = current_user.role == "admin"
+    is_parent = current_user.role == "parent"
+    if current_user.role == "enseignant":
+        abort(403)
+
+    students = []
+    student = None
+    if is_admin:
+        students = Student.query.order_by(Student.nom).all()
+        raw_id = request.args.get("student_id", "").strip()
+        if raw_id:
+            try:
+                student = db.session.get(Student, int(raw_id))
+            except ValueError:
+                abort(400)
+            if not student:
+                abort(404)
+    elif is_parent:
+        students = parent_children(current_user)
+        raw_id = request.args.get("student_id", "").strip()
+        if raw_id:
+            try:
+                requested_id = int(raw_id)
+            except ValueError:
+                abort(400)
+            student = next((child for child in students if child.id == requested_id), None)
+            if not student:
+                abort(403)
+        elif len(students) == 1:
+            student = students[0]
+    else:
+        student = db.session.get(Student, current_user.student_id) if current_user.student_id else None
+
+    active_year = AcademicYear.query.filter_by(active=True).first()
+    year = request.args.get("annee", "").strip() or (active_year.label if active_year else "2026-2027")
+    if not re.fullmatch(r"\\d{4}-\\d{4}", year):
+        abort(400)
+
+    lines = []
+    summary = None
+    ranking = None
+    if student:
+        grades = Grade.query.filter_by(student_id=student.id, annee_academique=year).all()
+        summary = resultats_annuels(grades)
+        lines = summary["matieres"]
+        class_grades = db.session.query(Grade.student_id, Grade.note).join(Student).filter(
+            Student.classe == student.classe,
+            Grade.annee_academique == year
+        ).all()
+        ranking = classement_classe(class_grades, student.id)
+
+    return page("Résultats annuels", """
+    {% if admin or parent %}<section class='panel'><h2>Choisir un élève</h2><form method='get' class='inline-form'>
+      <label>Élève / enfant<select name='student_id'><option value=''>Sélectionner</option>{% for s in students %}<option value='{{ s.id }}' {% if student and student.id==s.id %}selected{% endif %}>{{ s.nom }} · {{ s.classe }}</option>{% endfor %}</select></label>
+      <label>Année académique<input name='annee' value='{{ year }}' pattern='[0-9]{4}-[0-9]{4}' required></label><button class='btn primary'>Afficher</button>
+    </form></section>{% endif %}
+    {% if student %}
+    <section class='panel'><h2>{{ student.nom }}</h2><p>{{ student.classe }} · {{ year }}</p>
+      <div class='stats'><article><small>Moyenne générale annuelle</small><strong>{% if summary.moyenne_generale is not none %}{{ '%.2f'|format(summary.moyenne_generale) }}/20{% else %}—{% endif %}</strong></article>
+      <article><small>Décision indicative</small><strong>{{ decision_passage(summary.moyenne_generale) }}</strong></article>
+      <article><small>Classement annuel</small><strong>{% if ranking.rang %}{{ ranking.rang }}e / {{ ranking.effectif }}{% else %}Non classé{% endif %}</strong></article></div>
+      <div class='table-wrap'><table><tr><th>Matière</th><th>Nombre de notes</th><th>Moyenne annuelle</th><th>Moyenne trimestrielle</th><th>Examen final</th></tr>
+      {% for row in lines %}<tr><td>{{ row.matiere }}</td><td>{{ row.nombre }}</td><td>{{ '%.2f'|format(row.moyenne) }}/20</td><td>{% if row.moyenne_trimestrielle is not none %}{{ '%.2f'|format(row.moyenne_trimestrielle) }}/20{% else %}—{% endif %}</td><td>{% if row.moyenne_examen_final is not none %}{{ '%.2f'|format(row.moyenne_examen_final) }}/20{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan='5'>Aucune note pour cette année académique.</td></tr>{% endfor %}</table></div>
+      <p class='muted'>La moyenne annuelle est une moyenne arithmétique des notes enregistrées par matière. Les coefficients et règles de passage doivent être confirmés par la Direction avant validation officielle.</p>
+    </section>
+    {% elif not admin and not parent %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève.</section>{% else %}<section class='panel'>Sélectionnez un élève pour consulter ses résultats annuels.</section>{% endif %}
+    <section class='panel'><a class='btn outline' href='/bulletins'>Consulter les bulletins par période</a></section>
+    """, admin=is_admin, parent=is_parent, students=students, student=student, year=year,
+    summary=summary, lines=lines, ranking=ranking)
+
 
 @app.errorhandler(403)
 def forbidden(_): return page("Accès refusé","<section class='panel'><h2>Accès réservé à l'administration.</h2><a href='/'>Retour</a></section>"),403
