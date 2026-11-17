@@ -515,6 +515,8 @@ LOGIN = """
 DASH_ADMIN = """
 <section class='hero'><div><small>VUE GÉNÉRALE</small><h2>Bonjour, {{ current_user.nom }} 👋</h2><p>Bienvenue dans votre espace de gestion.</p></div><span>✦</span></section>
 <div class='stats'><article><small>Élèves inscrits</small><strong>{{ total }}</strong><em>Effectif total</em></article><article><small>Enseignants</small><strong>{{ enseignants }}</strong><em>Personnel enseignant</em></article><article><small>Taux de réussite</small><strong>{{ reussite }}%</strong><em>Moyenne au seuil de 10/20</em></article><article><small>Recettes encaissées · CDF</small><strong>{{ recettes_cdf }} CDF</strong><em>Paiements confirmés</em></article><article><small>Recettes encaissées · USD</small><strong>{{ recettes_usd }} USD</strong><em>Paiements confirmés</em></article><article><small>Paiements payés</small><strong>{{ payes }}/{{ nb_paiements }}</strong><em>Suivi des frais</em></article></div>
+<section class='panel'><div class='panel-head'><div><h2>Présences du jour · {{ date_jour }}</h2><p>Relevés enregistrés aujourd'hui</p></div><a class='btn outline' href='/presences/rapport'>Voir les rapports</a></div><div class='stats'><article><small>Présents</small><strong>{{ presence_jour['Présent'] }}</strong></article><article><small>Absents</small><strong>{{ presence_jour['Absent'] }}</strong></article><article><small>En retard</small><strong>{{ presence_jour['Retard'] }}</strong></article><article><small>Classes représentées</small><strong>{{ total_classes }}</strong></article></div></section>
+<section class='panel'><h2>Accès rapides · Direction</h2><div class='quick'><a href='/eleves'><b>Élèves</b><small>Inscriptions et dossiers</small></a><a href='/enseignants'><b>Enseignants</b><small>Équipe pédagogique</small></a><a href='/presences'><b>Présences</b><small>Absences et retards</small></a><a href='/notes'><b>Notes</b><small>Évaluations scolaires</small></a><a href='/finances'><b>Finances</b><small>Recettes et dépenses</small></a><a href='/frais'><b>Frais scolaires</b><small>Soldes par élève</small></a></div></section>
 <section class='panel'><div class='panel-head'><div><h2>Dernières inscriptions</h2><p>Les dossiers récemment ajoutés</p></div><a class='btn outline' href='/eleves'>Tous les élèves</a></div>
 <div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Classe</th><th>Promotion</th><th></th></tr>{% for s in recents %}<tr><td><img class='mini' src='/static/uploads/{{ s.photo }}'> {{ s.nom }}</td><td>{{ s.matricule }}</td><td>{{ s.classe }}</td><td>{{ s.promotion }}</td><td><a href='/eleves/{{ s.id }}'>Détails →</a></td></tr>{% else %}<tr><td colspan='5'>Aucune inscription pour le moment.</td></tr>{% endfor %}</table></div></section>
 """
@@ -778,8 +780,16 @@ def dashboard():
         eleves_avec_notes = [s for s in Student.query.all() if s.notes]
         seuil = float(os.getenv("PASS_MARK", "10"))
         reussite = round(100 * sum(1 for s in eleves_avec_notes if s.moyenne >= seuil) / len(eleves_avec_notes), 1) if eleves_avec_notes else 0
+        aujourdhui = date.today()
+        presence_jour = {
+            "Présent": Attendance.query.filter_by(jour=aujourdhui, statut="Présent").count(),
+            "Absent": Attendance.query.filter_by(jour=aujourdhui, statut="Absent").count(),
+            "Retard": Attendance.query.filter_by(jour=aujourdhui, statut="Retard").count()
+        }
         return page("Tableau de bord", DASH_ADMIN, reussite=reussite, total=Student.query.count(),
             enseignants=User.query.filter_by(role="enseignant").count(),
+            total_classes=db.session.query(Student.classe).filter(Student.classe.isnot(None), Student.classe != "").distinct().count(),
+            presence_jour=presence_jour, date_jour=aujourdhui.strftime("%d/%m/%Y"),
             recettes_cdf=db.session.query(db.func.coalesce(db.func.sum(Payment.montant),0)).filter_by(statut="Payé",devise="CDF").scalar(),
             recettes_usd=db.session.query(db.func.coalesce(db.func.sum(Payment.montant),0)).filter_by(statut="Payé",devise="USD").scalar(),
             payes=Payment.query.filter_by(statut="Payé").count(), nb_paiements=Payment.query.count(),
