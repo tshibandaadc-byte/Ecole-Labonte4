@@ -182,11 +182,11 @@ BASE = """
 <title>{{ title }} · École La Bonté</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
 <nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
-<a href='/notes'>▤ Notes & résultats</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
+<a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
 {% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}
-{{ content|safe }}</main><nav class='bottom-nav'><a href='/'>Accueil</a>{% if current_user.role=='admin' %}<a href='/eleves'>Élèves</a>{% endif %}{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>Présences</a>{% endif %}<a href='/notes'>Notes</a><a href='/messages'>Messages</a><a href='/finances'>Finances</a></nav></div>
+{{ content|safe }}</main><nav class='bottom-nav'><a href='/'>Accueil</a>{% if current_user.role=='admin' %}<a href='/eleves'>Élèves</a>{% endif %}{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>Présences</a>{% endif %}<a href='/notes'>Notes</a><a href='/bulletins'>Bulletins</a><a href='/messages'>Messages</a><a href='/finances'>Finances</a></nav></div>
 {% else %}{% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}{{ content|safe }}{% endif %}
 <script src='/static/app.js'></script></body></html>
 """
@@ -275,6 +275,47 @@ GRADES = """
 {% elif teacher %}<section class='panel'><h2>Saisir une note pour un cours affecté</h2><p>Vous ne pouvez évaluer que les élèves de vos classes et les cours qui vous sont attribués.</p><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.classe }}</option>{% endfor %}</select></label><label>Cours affecté<select name='assignment_id' required>{% for a in assignments %}<option value='{{ a.id }}'>{{ a.cours }} · {{ a.classe }} · {{ a.annee_academique }}</option>{% endfor %}</select></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<input name='periode' value='Trimestre 1' required></label><button class='btn primary' {% if not assignments or not students %}disabled{% endif %}>Enregistrer la note</button></form>{% if not assignments %}<p>Aucun cours ne vous est affecté. Contactez l'administration.</p>{% endif %}</section>{% endif %}
 <section class='panel'><h2>Résultats et notes</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in notes %}<tr><td>{{ n.eleve.nom }}</td><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td><b>{{ n.note }}/20</b></td></tr>{% else %}<tr><td colspan='4'>Aucune note disponible.</td></tr>{% endfor %}</table></div></section>
 """
+
+BULLETIN = """
+<style>
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body { background: white !important; }
+  .side, .bottom-nav, header, .no-print, .alert { display: none !important; }
+  .layout, .main { display: block !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  .panel { box-shadow: none !important; border: 1px solid #bbb !important; break-inside: avoid; margin: 0 0 14px !important; }
+  .bulletin-head { border-bottom: 2px solid #075b49; padding-bottom: 12px; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #aaa !important; padding: 7px !important; }
+}
+.bulletin-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.bulletin-mark { color:#b58b26; font-size:30px; font-weight:800; }
+.bulletin-meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:16px 0; }
+.bulletin-meta div { background:#f5f7f5; padding:10px; border-radius:8px; }
+.bulletin-meta small { display:block; color:#667; margin-bottom:3px; }
+.bulletin-summary { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; }
+.bulletin-summary div { background:#f5f7f5; border-radius:8px; padding:12px 16px; }
+.bulletin-summary strong { display:block; font-size:20px; color:#075b49; }
+.signature-row { display:flex; justify-content:space-between; gap:30px; margin-top:35px; }
+.signature-row div { width:42%; border-top:1px solid #888; padding-top:8px; text-align:center; }
+</style>
+{% if admin and not student %}<section class='panel no-print'><h2>Choisir un élève</h2><form method='get' class='inline-form'><label>Élève<select name='student_id' required><option value=''>Sélectionner</option>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><button class='btn primary'>Afficher le bulletin</button></form></section>
+{% elif parent and not student %}<section class='panel'>Aucun enfant n'est lié à votre compte. Contactez l'administration.</section>
+{% elif not student %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève. Contactez l'administration.</section>
+{% else %}
+<div class='panel no-print' style='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap'><div><b>Bulletins scolaires</b><p>Consultez les résultats par année académique et période.</p></div><button type='button' class='btn primary' onclick='window.print()'>Imprimer / Enregistrer en PDF</button></div>
+{% for group in groups %}
+<section class='panel'>
+  <div class='bulletin-head'><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h2>Bulletin scolaire</h2><p>Année académique {{ group.annee }} · {{ group.periode }}</p></div><div class='bulletin-mark'>✦</div></div>
+  <div class='bulletin-meta'><div><small>ÉLÈVE</small><b>{{ student.nom }}</b></div><div><small>MATRICULE</small><b>{{ student.matricule }}</b></div><div><small>FACULTÉ / FILIÈRE</small><b>{{ student.faculte }} · {{ student.filiere }}</b></div><div><small>PROMOTION / CLASSE</small><b>{{ student.promotion }} · {{ student.classe }}</b></div></div>
+  <div class='table-wrap'><table><tr><th>Matière / Cours</th><th>Note obtenue</th><th>Maximum</th></tr>{% for n in group.notes %}<tr><td>{{ n.cours }}</td><td><b>{{ '%.2f'|format(n.note) }}</b></td><td>20</td></tr>{% endfor %}</table></div>
+  <div class='bulletin-summary'><div><small>Moyenne générale</small><strong>{{ '%.2f'|format(group.moyenne) }}/20</strong></div><div><small>Appréciation</small><strong>{{ group.appreciation }}</strong></div><div><small>Résultat</small><strong>{{ 'Admis' if group.moyenne >= 10 else 'À renforcer' }}</strong></div></div>
+  <div class='signature-row'><div>Le titulaire</div><div>La Direction</div></div>
+</section>
+{% else %}<section class='panel'>Aucune note n'est encore disponible pour cet élève.</section>{% endfor %}
+{% endif %}
+"""
+
 FINANCES = """
 {% if admin %}<section class='panel'><h2>Enregistrer un paiement</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Libellé<input name='libelle' required placeholder='Frais scolaires'></label><label>Montant<input type='number' name='montant' min='0' step='1' required></label><label>Devise<select name='devise' required><option value='CDF'>CDF — Franc congolais</option><option value='USD'>USD — Dollar américain</option></select></label><label>Statut<select name='statut'><option>Payé</option><option>En attente</option></select></label><button class='btn primary'>Ajouter</button></form></section>{% endif %}
 <section class='panel'><h2>Suivi des paiements</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Libellé</th><th>Montant</th><th>Devise</th><th>Statut</th></tr>{% for p in paiements %}<tr><td>{{ p.eleve.nom }}</td><td>{{ p.libelle }}</td><td>{{ "{:,.0f}".format(p.montant).replace(",", " ") }}</td><td>{{ p.devise }}</td><td><span class='status {{ "paid" if p.statut=="Payé" else "pending" }}'>{{ p.statut }}</span></td></tr>{% else %}<tr><td colspan='4'>Aucun paiement.</td></tr>{% endfor %}</table></div></section>
@@ -503,6 +544,75 @@ def notes():
         notes_list=query.filter(Grade.student_id==current_user.student_id).order_by(Grade.id.desc()).all()
     return page("Notes & résultats",GRADES,admin=is_admin,teacher=is_teacher,notes=notes_list,
         students=students,assignments=assignments)
+
+
+@app.route("/bulletins")
+@login_required
+def bulletins():
+    is_admin = current_user.role == "admin"
+    is_parent = current_user.role == "parent"
+    if current_user.role == "enseignant":
+        abort(403)
+
+    students = []
+    student = None
+    if is_admin:
+        students = Student.query.order_by(Student.nom).all()
+        raw_id = request.args.get("student_id", "").strip()
+        if raw_id:
+            try:
+                student = db.session.get(Student, int(raw_id))
+            except ValueError:
+                abort(400)
+            if not student:
+                abort(404)
+    elif is_parent:
+        students = parent_children(current_user)
+        raw_id = request.args.get("student_id", "").strip()
+        if raw_id:
+            try:
+                requested_id = int(raw_id)
+            except ValueError:
+                abort(400)
+            student = next((child for child in students if child.id == requested_id), None)
+            if not student:
+                abort(403)
+        elif len(students) == 1:
+            student = students[0]
+    else:
+        student = db.session.get(Student, current_user.student_id) if current_user.student_id else None
+
+    groups = []
+    if student:
+        grades = Grade.query.filter_by(student_id=student.id).order_by(
+            Grade.annee_academique.desc(), Grade.periode, Grade.cours, Grade.id
+        ).all()
+        grouped = {}
+        for grade in grades:
+            key = (grade.annee_academique or "Non précisée", grade.periode or "Période non précisée")
+            grouped.setdefault(key, []).append(grade)
+        for (annee, periode), rows in grouped.items():
+            moyenne = sum(row.note for row in rows) / len(rows)
+            if moyenne >= 16:
+                appreciation = "Très bien"
+            elif moyenne >= 14:
+                appreciation = "Bien"
+            elif moyenne >= 12:
+                appreciation = "Assez bien"
+            elif moyenne >= 10:
+                appreciation = "Passable"
+            else:
+                appreciation = "Insuffisant"
+            groups.append({
+                "annee": annee,
+                "periode": periode,
+                "notes": rows,
+                "moyenne": moyenne,
+                "appreciation": appreciation
+            })
+    return page("Bulletins scolaires", BULLETIN, admin=is_admin,
+                parent=is_parent, students=students, student=student, groups=groups)
+
 
 @app.route("/finances", methods=["GET","POST"])
 @login_required
