@@ -1,6 +1,6 @@
 import unittest
 
-from assessment import appreciation, classement_classe, decision_passage, moyenne_notes, resultats_annuels
+from assessment import appreciation, classement_classe, decision_passage, moyenne_notes, resultats_annuels, classement_annuel
 
 
 class AssessmentTests(unittest.TestCase):
@@ -48,6 +48,15 @@ class AssessmentTests(unittest.TestCase):
 
     def test_annual_results_empty(self):
         self.assertIsNone(resultats_annuels([])["moyenne_generale"])
+
+
+    def test_annual_ranking_weights_each_subject_equally(self):
+        results = [
+            (1, "Maths", 18), (1, "Maths", 18), (1, "Français", 10),
+            (2, "Maths", 15), (2, "Français", 15),
+        ]
+        self.assertEqual(classement_annuel(results, 2)["rang"], 1)
+        self.assertEqual(classement_annuel(results, 1)["rang"], 2)
 
 
 if __name__ == "__main__":
