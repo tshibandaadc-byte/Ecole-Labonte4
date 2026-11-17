@@ -7,7 +7,7 @@ from school_structure import NIVEAUX_SCOLAIRES
 
 
 def register_progression_routes(app, db, Student, Grade, Enrollment, StudentHistory,
-                                AcademicYear, page):
+                                AcademicYear, page, journaliser):
     @app.route("/passages", methods=["GET", "POST"])
     @login_required
     def passages_scolaires():
@@ -26,8 +26,9 @@ def register_progression_routes(app, db, Student, Grade, Enrollment, StudentHist
             year = request.form.get("annee_academique", "").strip()
             decision = request.form.get("decision", "").strip()
             allowed = ("Promu", "Redoublant", "Diplômé")
-            if not student or not re.fullmatch(r"\d{4}-\d{4}", year) or decision not in allowed:
-                abort(400, description="Élève, année ou décision invalide.")
+            if (not student or not re.fullmatch(r"\d{4}-\d{4}", year)
+                    or int(year[5:]) != int(year[:4]) + 1 or decision not in allowed):
+                abort(400, description="Élève, année académique ou décision invalide.")
 
             grades = Grade.query.filter_by(student_id=student.id, annee_academique=year).all()
             summary = resultats_annuels(grades)
@@ -114,6 +115,9 @@ def register_progression_routes(app, db, Student, Grade, Enrollment, StudentHist
                         student_id=student.id, annee_academique=next_year,
                         promotion=student.promotion, classe=target_class, statut=decision
                     ))
+                db.session.flush()
+                journaliser("Décision de passage scolaire", "Enrollment",
+                    f"élève={student.id}; nom={student.nom}; matricule={student.matricule}; année={year}; décision={decision}; classe={current_class} -> {target_class}; moyenne={summary['moyenne_generale']}")
                 db.session.commit()
             except Exception:
                 db.session.rollback()
