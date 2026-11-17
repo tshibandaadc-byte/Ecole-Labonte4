@@ -3059,11 +3059,64 @@ def comptabilite():
     """, totals=totals, entries=entries)
 
 
+def filtrer_journal():
+    query = AuditLog.query
+    debut = request.args.get("debut", "").strip()
+    fin = request.args.get("fin", "").strip()
+    terme = request.args.get("q", "").strip()
+    action = request.args.get("action", "").strip()
+    entite = request.args.get("entite", "").strip()
+    try:
+        if debut:
+            query = query.filter(AuditLog.cree_le >= datetime.combine(date.fromisoformat(debut), datetime.min.time()))
+        if fin:
+            query = query.filter(AuditLog.cree_le <= datetime.combine(date.fromisoformat(fin), datetime.max.time()))
+    except ValueError:
+        abort(400, description="Dates du journal invalides.")
+    if debut and fin and debut > fin:
+        abort(400, description="La date de début doit précéder la date de fin.")
+    if action:
+        query = query.filter(AuditLog.action == action)
+    if entite:
+        query = query.filter(AuditLog.entite == entite)
+    if terme:
+        pattern = "%" + terme.replace("%", r"\\%").replace("_", r"\\_") + "%"
+        query = query.filter(db.or_(AuditLog.details.ilike(pattern), AuditLog.ip.ilike(pattern),
+            AuditLog.action.ilike(pattern), AuditLog.entite.ilike(pattern),
+            AuditLog.user.has(User.nom.ilike(pattern))))
+    return query.order_by(AuditLog.cree_le.desc(), AuditLog.id.desc())
+
+
 @app.route("/journal")
 @admin_only
 def journal():
-    logs=AuditLog.query.order_by(AuditLog.cree_le.desc()).limit(250).all()
-    return page("Journal des opérations", """<section class='panel'><div class='table-wrap'><table><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Entité</th><th>Détails</th><th>IP</th></tr>{% for x in logs %}<tr><td>{{ x.cree_le.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ x.user.nom if x.user else 'Système' }}</td><td>{{ x.action }}</td><td>{{ x.entite }}</td><td>{{ x.details or '' }}</td><td>{{ x.ip or '' }}</td></tr>{% else %}<tr><td colspan='6'>Aucune opération.</td></tr>{% endfor %}</table></div></section>""", logs=logs)
+    base = filtrer_journal()
+    logs = base.limit(500).all()
+    actions = [x[0] for x in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action).all()]
+    entites = [x[0] for x in db.session.query(AuditLog.entite).distinct().order_by(AuditLog.entite).all()]
+    return page("Journal des opérations", """<section class='panel'><form method='get' class='form-grid'>
+    <label>Recherche<input name='q' value='{{ request.args.get("q","") }}' placeholder='Nom, détails, adresse IP'></label>
+    <label>Action<select name='action'><option value=''>Toutes les actions</option>{% for a in actions %}<option value='{{ a }}' {% if request.args.get("action")==a %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></label>
+    <label>Entité<select name='entite'><option value=''>Toutes les entités</option>{% for e in entites %}<option value='{{ e }}' {% if request.args.get("entite")==e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></label>
+    <label>Du<input type='date' name='debut' value='{{ request.args.get("debut","") }}'></label>
+    <label>Au<input type='date' name='fin' value='{{ request.args.get("fin","") }}'></label>
+    <button class='btn primary'>Filtrer</button><a class='btn' href='/journal'>Réinitialiser</a><a class='btn' href='/journal/export.csv?{{ request.query_string.decode()|safe }}'>Exporter CSV</a>
+    </form><p>{{ logs|length }} opération(s) affichée(s), maximum 500.</p>
+    <div class='table-wrap'><table><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Entité</th><th>Détails</th><th>IP</th></tr>{% for x in logs %}<tr><td>{{ x.cree_le.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ x.user.nom if x.user else 'Système' }}</td><td>{{ x.action }}</td><td>{{ x.entite }}</td><td>{{ x.details or '' }}</td><td>{{ x.ip or '' }}</td></tr>{% else %}<tr><td colspan='6'>Aucune opération.</td></tr>{% endfor %}</table></div></section>""", logs=logs, actions=actions, entites=entites)
+
+
+@app.route("/journal/export.csv")
+@admin_only
+def journal_export_csv():
+    output = StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Date", "Utilisateur", "Action", "Entité", "Détails", "Adresse IP"])
+    for x in filtrer_journal().limit(10000).all():
+        writer.writerow([x.cree_le.strftime("%Y-%m-%d %H:%M:%S"), x.user.nom if x.user else "Système",
+            x.action, x.entite, x.details or "", x.ip or ""])
+    data = BytesIO(("\\ufeff" + output.getvalue()).encode("utf-8"))
+    return send_file(data, mimetype="text/csv; charset=utf-8", as_attachment=True,
+        download_name="journal-audit-ecole-shemec.csv")
 
 
 @app.route("/resultats-annuels")
