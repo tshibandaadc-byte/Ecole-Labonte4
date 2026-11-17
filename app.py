@@ -296,11 +296,11 @@ STUDENTS = """
 <div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Faculté / Filière</th><th>Classe</th><th>Moyenne</th><th></th></tr>{% for s in students %}<tr><td><img class='mini' src='/static/uploads/{{ s.photo }}'> {{ s.nom }}</td><td><span class='pill'>{{ s.matricule }}</span></td><td>{{ s.faculte }}<small class='sub'>{{ s.filiere }}</small></td><td>{{ s.classe }}</td><td>{{ s.moyenne }}/20</td><td><a href='/eleves/{{ s.id }}'>Ouvrir →</a></td></tr>{% else %}<tr><td colspan='6'>Aucun élève trouvé.</td></tr>{% endfor %}</table></div></section>
 """
 STUDENT_FORM = """
-<section class='panel'><h2>{{ 'Modifier le dossier' if s else 'Nouvelle inscription' }}</h2><p>La photo est obligatoire à la création. Le matricule de 14 chiffres est saisi manuellement par la Direction.</p>
+<section class='panel'><h2>{{ 'Modifier le dossier' if s else 'Nouvelle inscription' }}</h2><p>La photo est obligatoire à la création. Le matricule est attribué automatiquement à partir de l'année, du code faculté et du code filière.</p>
 <form method='post' enctype='multipart/form-data' class='form-grid'>
 <label class='photo'>Photo de profil {% if not s %}*{% endif %}<input type='file' name='photo' accept='.jpg,.jpeg,.png,.webp' {% if not s %}required{% endif %}><img id='preview' src='{{ ("/static/uploads/"+s.photo) if s else "" }}' {% if not s %}hidden{% endif %}></label>
 <label>Nom complet *<input name='nom' required value='{{ s.nom if s else "" }}'></label>
-<label>Matricule attribué par la Direction *<input name='matricule' required pattern='[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}' placeholder='2026-01-02-000001' value='{{ s.matricule if s else "" }}'></label>
+{% if s %}<label>Matricule officiel<input value='{{ s.matricule }}' readonly></label>{% else %}<label>Matricule officiel<input value='Attribué automatiquement après validation' readonly></label>{% endif %}
 <label>Année d'inscription *<input type='number' name='annee_inscription' required value='{{ s.annee_inscription if s else "" }}'></label>
 <label>Code faculté *<input name='code_faculte' pattern='[0-9]{2}' maxlength='2' required value='{{ s.code_faculte if s else "" }}'></label>
 <label>Code filière *<input name='code_filiere' pattern='[0-9]{2}' maxlength='2' required value='{{ s.code_filiere if s else "" }}'></label>
@@ -523,7 +523,7 @@ def connexion():
 def creer_compte_eleve():
     template="""<div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><h1>Créer mon compte élève</h1><p>Utilisez le matricule remis par la Direction et choisissez votre mot de passe.</p><label>Matricule officiel<input name='matricule' required pattern='[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}' placeholder='2026-01-02-000001'></label><label>Mot de passe personnel<input type='password' name='password' minlength='10' required></label><label>Confirmer le mot de passe<input type='password' name='confirm' minlength='10' required></label><button class='btn primary wide'>Créer mon compte</button><a href='/connexion'>Retour</a></form></div>"""
     if request.method=="POST":
-        matricule=request.form.get("matricule","").strip()
+        matricule=generer_matricule(annee,cf,cfi)
         student=Student.query.filter_by(matricule=matricule).first()
         if not matricule_valide(matricule) or not student:
             flash("Matricule non reconnu. Vérifiez auprès de la Direction.", "error")
@@ -588,8 +588,11 @@ def eleve_nouveau():
             faculte=faculte_name, filiere=filiere_name,
             promotion=request.form["promotion"].strip(), classe=request.form["classe"].strip(),
             nombre_cours=int(request.form.get("nombre_cours") or 0), credits=int(request.form.get("credits") or 0))
-        db.session.add(s); db.session.commit()
-        flash("Inscription enregistrée : " + s.matricule, "success")
+        db.session.add(s); db.session.flush()
+        db.session.add(Enrollment(student_id=s.id, annee_academique=str(annee) + "-" + str(annee + 1),
+            promotion=s.promotion, classe=s.classe, statut="Inscrit"))
+        db.session.commit()
+        flash("Inscription enregistrée. Matricule attribué : " + s.matricule, "success")
         return redirect(url_for("eleve_detail", sid=s.id))
     return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
 
