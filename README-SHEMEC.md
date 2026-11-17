@@ -6,7 +6,8 @@ Cette version Flask est ajoutée à la branche `shemec-flask-pwa` du dépôt `Ec
 - Connexion par rôle : administration, enseignant, parent, élève.
 - Tableau de bord administratif : effectifs, enseignants, recettes et paiements.
 - Gestion des élèves : photo obligatoire à l'inscription, matricule automatique AAAA-001, recherche, fiche, modification et suppression.
-- Notes sur 20, suivi des paiements en francs congolais, messagerie interne et emploi du temps.
+- Notes sur 20, suivi des paiements en francs congolais, messagerie interne, emploi du temps et registre des présences/absences.
+- Taux de réussite calculé à partir des moyennes enregistrées avec un seuil provisoire de 10/20 (modifiable par la variable `PASS_MARK`).
 - Création des comptes utilisateurs par l'administrateur et association facultative au dossier d'un élève.
 - Interface responsive et installation PWA.
 
