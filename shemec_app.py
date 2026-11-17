@@ -1956,15 +1956,19 @@ def admissions():
         if action == "refuser":
             application.statut = "Refusée"
             db.session.commit()
+            journaliser("Refus admission", "AdmissionApplication",
+                f"demande={application.id}; candidat={application.nom}; année={application.annee_academique}")
+            db.session.commit()
             flash("Demande refusée.", "success")
         else:
             faculty, program = application.faculty, application.program
             if not faculty or not program or program.faculty_id != faculty.id:
                 abort(400, description="Le catalogue de cette demande est invalide.")
-            try:
-                academic_year = int(application.annee_academique[:4])
-            except ValueError:
-                abort(400, description="L'année académique doit commencer par une année à quatre chiffres.")
+            if not re.fullmatch(r"\d{4}-\d{4}", application.annee_academique):
+                abort(400, description="Format d'année académique invalide.")
+            academic_year = int(application.annee_academique[:4])
+            if int(application.annee_academique[5:]) != academic_year + 1:
+                abort(400, description="L'année académique doit couvrir deux années consécutives.")
             matricule = generer_matricule(academic_year, faculty.code, program.code)
             is_school = bool(application.niveau_scolaire)
             if is_school and (not classe_valide(application.niveau_scolaire, application.classe)
@@ -1984,6 +1988,9 @@ def admissions():
                 promotion=application.promotion, classe=application.classe, statut="Admis"))
             application.statut = "Acceptée"
             application.student_id = student.id
+            db.session.commit()
+            journaliser("Admission acceptée", "AdmissionApplication",
+                f"demande={application.id}; élève={student.id}; nom={student.nom}; matricule={matricule}; année={application.annee_academique}")
             db.session.commit()
             flash("Admission acceptée. Matricule attribué : " + matricule, "success")
         return redirect(url_for("admissions"))
@@ -2006,8 +2013,9 @@ def reinscriptions():
         niveau = request.form.get("niveau_scolaire", "").strip()
         option = request.form.get("option_scolaire", "").strip()
         if (not student or not re.fullmatch(r"\d{4}-\d{4}", year)
-                or not promotion or not classe):
-            abort(400)
+                or int(year[5:]) != int(year[:4]) + 1
+                or not promotion or len(promotion) > 80 or not classe or len(classe) > 80):
+            abort(400, description="Vérifiez l'élève, l'année académique, la promotion et la classe.")
         if niveau and (not classe_valide(niveau, classe) or not option_valide(niveau, option)):
             abort(400, description="La classe ou l'option ne correspond pas au cycle choisi.")
         if not niveau and student.niveau_scolaire and not classe_valide(student.niveau_scolaire, classe):
@@ -2025,6 +2033,9 @@ def reinscriptions():
                 student.faculte = niveau
                 student.filiere = option if niveau == "Secondaire" else "Général"
             db.session.add(enrollment)
+            db.session.commit()
+            journaliser("Réinscription élève", "Enrollment",
+                f"élève={student.id}; nom={student.nom}; matricule={student.matricule}; année={year}; promotion={promotion}; classe={classe}")
             db.session.commit()
             flash("Réinscription enregistrée.", "success")
         return redirect(url_for("reinscriptions"))
