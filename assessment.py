@@ -66,14 +66,17 @@ def resultats_annuels(notes):
     """
     matieres = defaultdict(list)
     trimestriels = defaultdict(list)
+    examens_trimestriels = defaultdict(list)
     examens_finaux = defaultdict(list)
     for item in notes:
         matiere = item.cours
         valeur = float(item.note)
         matieres[matiere].append(valeur)
         periode = (item.periode or "").strip().lower()
-        if periode in ("examen final", "examen de fin d'année", "examen annuel"):
+        if periode in ("examen final", "examen de fin d'année", "examen annuel", "examen"):
             examens_finaux[matiere].append(valeur)
+        elif periode in ("examen trimestriel", "examens trimestriels"):
+            examens_trimestriels[matiere].append(valeur)
         elif periode.startswith("trimestre"):
             trimestriels[matiere].append(valeur)
     lignes = []
@@ -83,6 +86,7 @@ def resultats_annuels(notes):
             "nombre": len(matieres[matiere]),
             "moyenne": moyenne_notes(matieres[matiere]),
             "moyenne_trimestrielle": moyenne_notes(trimestriels[matiere]),
+            "moyenne_examens_trimestriels": moyenne_notes(examens_trimestriels[matiere]),
             "moyenne_examen_final": moyenne_notes(examens_finaux[matiere]),
         })
     moyenne_generale = moyenne_notes(ligne["moyenne"] for ligne in lignes)
