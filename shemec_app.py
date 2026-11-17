@@ -4,7 +4,7 @@ import re
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, request, redirect, url_for, flash, send_from_directory, send_file, render_template_string, abort
+from flask import Flask, current_app, request, redirect, url_for, flash, send_from_directory, send_file, render_template_string, abort
 from io import BytesIO
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -1319,10 +1319,25 @@ def school_fees():
             if existing:
                 flash("Ces frais existent déjà pour cette classe et cette année.", "warning")
             else:
-                db.session.add(SchoolFee(classe=classe, annee_academique=year,
-                                         libelle=label, montant=amount, devise=currency))
+                fee = SchoolFee(classe=classe, annee_academique=year,
+                                 libelle=label, montant=amount, devise=currency)
+                db.session.add(fee)
+                db.session.flush()
+                alert_sender = current_app.extensions.get("shemec_parent_alert")
+                if alert_sender:
+                    affected_students = Student.query.filter(
+                        db.func.lower(db.func.trim(Student.classe)) == classe.casefold()
+                    ).all()
+                    for affected in affected_students:
+                        alert_sender(
+                            affected, "Nouveaux frais scolaires",
+                            "{} : {:,.0f} {} pour l'année {}. Consultez votre espace parent pour suivre le solde.".format(
+                                label, amount, currency, year
+                            ).replace(",", " "),
+                            "frais-{}".format(fee.id)
+                        )
                 db.session.commit()
-                flash("Frais de classe créés.", "success")
+                flash("Frais de classe créés. Les parents liés ont été informés dans leurs notifications.", "success")
             return redirect(url_for("school_fees"))
         if action == "record_payment":
             try:
@@ -1702,8 +1717,19 @@ def presences():
             record = Attendance(student_id=student.id, jour=jour,
                                 statut=statut, motif=motif)
             db.session.add(record)
+            db.session.flush()
+            if statut == "Absent":
+                alert_sender = current_app.extensions.get("shemec_parent_alert")
+                if alert_sender:
+                    alert_sender(
+                        student, "Absence enregistrée",
+                        "{} a été marqué(e) absent(e) le {}. Motif : {}. Pour toute précision, contactez l'école.".format(
+                            student.nom, jour.strftime("%d/%m/%Y"), motif or "Non précisé"
+                        ),
+                        "absence-{}".format(record.id)
+                    )
             db.session.commit()
-            flash("Présence enregistrée.", "success")
+            flash("Présence enregistrée. Les parents liés ont été informés en cas d'absence.", "success")
         return redirect(url_for("presences"))
 
     student_query = Student.query
