@@ -1816,6 +1816,9 @@ def affectations():
             flash("Vérifiez l'enseignant, le cours, la classe, l'année et le volume horaire (1 à 40 heures).", "error")
         elif TeacherAssignment.query.filter_by(teacher_id=teacher.id, cours=cours, classe=classe, annee_academique=annee).first():
             flash("Cette affectation existe déjà pour cet enseignant.", "error")
+        elif (db.session.query(db.func.coalesce(db.func.sum(TeacherAssignment.volume_horaire), 0))
+              .filter_by(teacher_id=teacher.id, annee_academique=annee).scalar() or 0) + volume > 40:
+            flash("La charge horaire totale de cet enseignant dépasserait 40 heures par semaine pour cette année.", "error")
         else:
             db.session.add(TeacherAssignment(teacher_id=teacher.id, cours=cours, classe=classe,
                 annee_academique=annee, volume_horaire=volume))
