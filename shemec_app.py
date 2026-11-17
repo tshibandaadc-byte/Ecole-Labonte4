@@ -1347,9 +1347,13 @@ def finances():
                 abort(400)
             if not label or not category or amount <= 0 or currency not in ("CDF", "USD"):
                 abort(400)
-            db.session.add(SchoolExpense(libelle=label, categorie=category, montant=amount,
+            expense = SchoolExpense(libelle=label, categorie=category, montant=amount,
                 devise=currency, date_depense=expense_date, reference=reference,
-                auteur_id=current_user.id))
+                auteur_id=current_user.id)
+            db.session.add(expense)
+            db.session.commit()
+            journaliser("Enregistrement dépense", "SchoolExpense",
+                f"id={expense.id}; libellé={label}; montant={amount} {currency}; date={expense_date}; référence={reference or ''}")
             db.session.commit()
             flash("Dépense enregistrée dans la caisse.", "success")
             return redirect(url_for("finances"))
@@ -1368,6 +1372,9 @@ def finances():
                           devise=devise, statut=statut,
                           date_paiement=date.today() if statut == "Payé" else None)
         db.session.add(payment)
+        db.session.commit()
+        journaliser("Enregistrement paiement", "Payment",
+            f"id={payment.id}; élève={student.nom}; libellé={libelle}; montant={montant} {devise}; statut={statut}")
         db.session.commit()
         flash("Paiement enregistré.", "success")
         return redirect(url_for("finances"))
@@ -3042,8 +3049,12 @@ def comptabilite():
         except ValueError: abort(400)
         currency=request.form.get("devise","CDF").upper()
         if kind not in ("Recette","Dépense") or not label or amount <= 0 or currency not in ("CDF","USD"): abort(400)
-        db.session.add(AccountingEntry(type_operation=kind,libelle=label,categorie=category,montant=amount,devise=currency,date_operation=day,reference=request.form.get("reference","").strip()))
-        db.session.commit(); journaliser("Écriture comptable","AccountingEntry",f"{kind}: {label} {amount} {currency}"); db.session.commit()
+        entry = AccountingEntry(type_operation=kind,libelle=label,categorie=category,montant=amount,devise=currency,date_operation=day,reference=request.form.get("reference","").strip())
+        db.session.add(entry)
+        db.session.commit()
+        journaliser("Écriture comptable", "AccountingEntry",
+            f"id={entry.id}; type={kind}; libellé={label}; montant={amount} {currency}; date={day}")
+        db.session.commit()
         flash("Écriture comptable enregistrée.","success")
         return redirect(url_for("comptabilite"))
     entries=AccountingEntry.query.order_by(AccountingEntry.date_operation.desc(),AccountingEntry.id.desc()).all()
