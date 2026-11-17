@@ -300,7 +300,7 @@ BULLETIN = """
 .signature-row div { width:42%; border-top:1px solid #888; padding-top:8px; text-align:center; }
 </style>
 {% if admin and not student %}<section class='panel no-print'><h2>Choisir un élève</h2><form method='get' class='inline-form'><label>Élève<select name='student_id' required><option value=''>Sélectionner</option>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><button class='btn primary'>Afficher le bulletin</button></form></section>
-{% elif parent and not student %}<section class='panel'>Aucun enfant n'est lié à votre compte. Contactez l'administration.</section>
+{% elif parent and not student %}{% if students %}<section class='panel no-print'><h2>Choisir un enfant</h2><form method='get' class='inline-form'><label>Enfant<select name='student_id' required><option value=''>Sélectionner</option>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><button class='btn primary'>Afficher le bulletin</button></form></section>{% else %}<section class='panel'>Aucun enfant n'est lié à votre compte. Contactez l'administration.</section>{% endif %}
 {% elif not student %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève. Contactez l'administration.</section>
 {% else %}
 <div class='panel no-print' style='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap'><div><b>Bulletins scolaires</b><p>Consultez les résultats par année académique et période.</p></div><button type='button' class='btn primary' onclick='window.print()'>Imprimer / Enregistrer en PDF</button></div>
