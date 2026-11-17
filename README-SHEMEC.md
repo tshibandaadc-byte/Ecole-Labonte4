@@ -1,42 +1,68 @@
-# ÉCOLE LA BONTÉ — application Flask PWA
+# ÉCOLE SHEMEC — portail scolaire Flask / PWA
 
-Cette version Flask/PWA est intégrée au dépôt `Ecole-Labonte4` dans le compte GitHub `tshibandaadc-byte`. Les anciens prototypes et backends restent conservés.
+Application scolaire pour École Shemec à Lubumbashi, République démocratique du Congo. Le dépôt historique `Ecole-Labonte4` est conservé; le nom de produit affiché dans l'application est désormais **École Shemec**.
 
-## Fonctionnalités
-- Connexion par rôle : administration, enseignant, parent, élève.
-- Tableau de bord administratif : effectifs, enseignants, recettes et paiements.
-- Gestion des élèves : photo obligatoire à l'inscription, matricule automatique 2026-01-02-000001 (14 chiffres, attribué par la Direction), recherche, fiche, modification et suppression.
-- Notes sur 20, suivi des paiements en francs congolais, messagerie interne, emploi du temps et registre des présences/absences.
-- Taux de réussite calculé à partir des moyennes enregistrées avec un seuil provisoire de 10/20 (modifiable par la variable `PASS_MARK`).
-- Création autonome du compte élève après vérification du matricule attribué par la Direction ; l'élève choisit et confirme son propre mot de passe.
-- Interface responsive et installation PWA.
+## Technologies
+- Python 3.11+ et Flask
+- Flask-SQLAlchemy, Flask-Login
+- SQLite en développement; PostgreSQL conseillé en production
+- HTML/Jinja, CSS, JavaScript et PWA installable
+- PDF avec ReportLab
 
-## Lancer sous Windows / VS Code
-1. Installer Python 3.11+ depuis https://www.python.org/downloads/ (cocher Add Python to PATH).
-2. Ouvrir le dossier du dépôt dans VS Code puis ouvrir Terminal.
+## Fonctions déjà présentes dans le portail Flask
+- Connexion par rôle : administration, enseignant, parent et élève.
+- Site public, demande d'admission et espaces de connexion.
+- Dossiers élèves, matricules attribués par la Direction, comptes élèves, photos, QR codes et historique académique.
+- Notes sur 20, bulletins PDF, affectations enseignants, emploi du temps et présences.
+- Frais scolaires et paiements suivis séparément en CDF et USD; reçus PDF.
+- Messagerie interne, assistant de recherche scolaire, comptes utilisateurs.
+- Personnel, contrats, avances, paies et bulletins PDF.
+- Années scolaires et trimestres/périodes.
+- Bibliothèque : catalogue, emprunts, retours et pénalités configurables.
+- Transport : bus, chauffeurs, itinéraires et affectation des élèves.
+- Cantine : menus, commandes et stocks avec alertes de seuil.
+- Comptabilité : recettes et dépenses distinctes par devise.
+- Journal des opérations (audit) et interface responsive/PWA.
+
+## Installation locale sous Windows / VS Code
+1. Installer Python 3.11 ou plus récent depuis https://www.python.org/downloads/ en activant l'option **Add Python to PATH**.
+2. Ouvrir le dossier du dépôt dans VS Code puis le terminal PowerShell.
 3. Exécuter :
 
 ```powershell
 py -m venv venv
 .\venv\Scripts\Activate.ps1
 py -m pip install -r requirements.txt
+$env:SECRET_KEY = "remplacer-par-une-cle-longue-et-aleatoire"
+$env:ADMIN_PASSWORD = "choisir-un-mot-de-passe-long-et-unique"
 py app.py
 ```
 
-Ouvrir http://127.0.0.1:5000. Connexion locale initiale : `admin@shemec.cd` / `La Bonté2026!`. Changer ce mot de passe immédiatement.
+Ouvrir http://127.0.0.1:5000. Au premier lancement, le compte administrateur est créé avec l'adresse `admin@shemec.cd` et la valeur définie dans `ADMIN_PASSWORD`. Ne pas réutiliser un mot de passe de démonstration.
 
-Si PowerShell bloque l'activation : `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, puis réactiver l'environnement.
+Si PowerShell bloque l'activation :
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\venv\Scripts\Activate.ps1
+```
 
-## Déployer sur Render
-1. Sur Render, choisir New > Blueprint et sélectionner ce dépôt.
-2. Dans les paramètres du service, définir `ADMIN_PASSWORD` avec un mot de passe long et unique.
-3. Le blueprint installe les dépendances, lance Gunicorn et crée une base PostgreSQL.
-4. Une fois déployée, ouvrir l'URL HTTPS Render et se connecter avec `admin@shemec.cd` et le mot de passe défini.
+## Déploiement Render
+1. Créer un Blueprint Render depuis ce dépôt.
+2. Définir `ADMIN_PASSWORD` comme variable secrète avec un mot de passe unique.
+3. Le blueprint installe les dépendances, lance Gunicorn et provisionne PostgreSQL.
+4. Vérifier les sauvegardes PostgreSQL et le stockage persistant des photos avant de saisir des données réelles.
 
 ## Installer comme application
 - Android : ouvrir l'URL HTTPS dans Chrome, menu ⋮, Installer l'application.
-- iPhone : ouvrir dans Safari, Partager, Sur l'écran d'accueil.
+- iPhone : ouvrir l'URL HTTPS dans Safari, Partager, Sur l'écran d'accueil.
 - PC : utiliser l'icône Installer de Chrome ou Edge.
 
-## Points à finaliser avant usage réel
-Cette branche est une première version fonctionnelle à valider. Avant de saisir des données personnelles réelles, ajouter une protection CSRF complète, des journaux d'audit, une politique de sauvegarde, un stockage persistant externe pour les photos, des procédures de récupération de mot de passe et une validation juridique de la gestion des données scolaires. Les rôles et restrictions d'accès sont à tester avec des comptes de chaque catégorie. Le taux de réussite utilise actuellement un seuil provisoire de 10/20 et toutes les notes enregistrées. L'école doit confirmer le seuil officiel et la période de calcul avant utilisation administrative.
+## À connecter ou renforcer avant une mise en production réelle
+- Passerelle de paiement Mobile Money (M-Pesa, Airtel Money, Orange Money) avec vérification serveur des transactions.
+- Fournisseur SMS et API WhatsApp Business.
+- Protection CSRF sur tous les formulaires, limitation des tentatives de connexion et récupération sécurisée des mots de passe.
+- Sauvegardes automatiques testées et restauration, stockage persistant sécurisé des photos.
+- Compléter les écritures d'audit sur toutes les opérations sensibles, les exports financiers et les rapports PDF/Excel.
+- Tester chaque rôle et les autorisations avec des comptes distincts; faire valider les règles scolaires, les frais et les périodes par la Direction.
+
+Les modules ajoutés sont une base de gestion opérationnelle. Les paiements électroniques, les notifications externes et les sauvegardes de production ne sont pas activés simplement par la présence de leurs écrans ou modèles : ils nécessitent des prestataires et une configuration réels.
