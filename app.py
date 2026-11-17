@@ -5,6 +5,7 @@ from progression import register_progression_routes
 from class_management import register_class_routes
 from pedagogy import register_timetable_routes
 from teacher_followup import register_teacher_followup
+from teacher_profile import register_teacher_profile
 
 # Ajoute le nouvel écran dans la navigation commune sans toucher aux autres pages.
 core.BASE = core.BASE.replace(
@@ -25,6 +26,7 @@ register_class_routes(
 )
 register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page, AcademicYear)
 register_teacher_followup(app, db, User, page)
+register_teacher_profile(app, db, User, Personnel, StaffContract, PayrollRecord, TeacherAssignment, page)
 
 core.BASE = core.BASE.replace(
     "<a href='/horaire'>▦ Emploi du temps</a>",
@@ -38,4 +40,9 @@ if __name__ == "__main__":
 core.BASE = core.BASE.replace(
     "<a href='/planning-cours'>▤ Planning des cours</a>",
     "<a href='/planning-cours'>▤ Planning des cours</a><a href='/suivi-enseignant'>♧ Suivi enseignants</a>"
+)
+
+core.BASE = core.BASE.replace(
+    "<a href='/mon-salaire'>◈ Mon salaire</a>",
+    "<a href='/mon-salaire'>◈ Mon salaire</a><a href='/espace-professionnel'>♙ Dossier professionnel</a>"
 )
