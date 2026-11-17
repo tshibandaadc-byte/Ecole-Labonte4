@@ -114,6 +114,7 @@ class Payment(db.Model):
     devise = db.Column(db.String(3), nullable=False, default="CDF")
     statut = db.Column(db.String(20), default="En attente")
     date_paiement = db.Column(db.Date, nullable=True)
+    eleve = db.relationship("Student", backref=db.backref("paiements", lazy=True))
 
 class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -318,8 +319,16 @@ BULLETIN = """
 """
 
 FINANCES = """
-{% if admin %}<section class='panel'><h2>Enregistrer un paiement</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Libellé<input name='libelle' required placeholder='Frais scolaires'></label><label>Montant<input type='number' name='montant' min='0' step='1' required></label><label>Devise<select name='devise' required><option value='CDF'>CDF — Franc congolais</option><option value='USD'>USD — Dollar américain</option></select></label><label>Statut<select name='statut'><option>Payé</option><option>En attente</option></select></label><button class='btn primary'>Ajouter</button></form></section>{% endif %}
-<section class='panel'><h2>Suivi des paiements</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Libellé</th><th>Montant</th><th>Devise</th><th>Statut</th></tr>{% for p in paiements %}<tr><td>{{ p.eleve.nom }}</td><td>{{ p.libelle }}</td><td>{{ "{:,.0f}".format(p.montant).replace(",", " ") }}</td><td>{{ p.devise }}</td><td><span class='status {{ "paid" if p.statut=="Payé" else "pending" }}'>{{ p.statut }}</span></td></tr>{% else %}<tr><td colspan='4'>Aucun paiement.</td></tr>{% endfor %}</table></div></section>
+{% if admin %}<section class='panel'><h2>Enregistrer un paiement</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Libellé<input name='libelle' required placeholder='Frais scolaires'></label><label>Montant<input type='number' name='montant' min='1' step='1' required></label><label>Devise<select name='devise' required><option value='CDF'>CDF — Franc congolais</option><option value='USD'>USD — Dollar américain</option></select></label><label>Statut<select name='statut'><option>Payé</option><option>En attente</option></select></label><button class='btn primary'>Ajouter</button></form></section>{% endif %}
+<section class='panel'><h2>Soldes et suivi des paiements</h2>
+<div class='stats-grid'>
+<article class='stat'><small>Payé en CDF</small><strong>{{ "{:,.0f}".format(totaux.CDF.paye).replace(",", " ") }} CDF</strong></article>
+<article class='stat'><small>En attente en CDF</small><strong>{{ "{:,.0f}".format(totaux.CDF.attente).replace(",", " ") }} CDF</strong></article>
+<article class='stat'><small>Payé en USD</small><strong>{{ "{:,.0f}".format(totaux.USD.paye).replace(",", " ") }} USD</strong></article>
+<article class='stat'><small>En attente en USD</small><strong>{{ "{:,.0f}".format(totaux.USD.attente).replace(",", " ") }} USD</strong></article>
+</div><div class='table-wrap'><table><tr><th>Élève</th><th>Libellé</th><th>Montant</th><th>Devise</th><th>Statut</th><th>Reçu</th></tr>
+{% for p in paiements %}<tr><td>{{ p.eleve.nom }}</td><td>{{ p.libelle }}</td><td>{{ "{:,.0f}".format(p.montant).replace(",", " ") }}</td><td>{{ p.devise }}</td><td>{{ p.statut }}</td><td><a class='btn outline' href='/finances/{{ p.id }}/recu.pdf'>PDF</a></td></tr>
+{% else %}<tr><td colspan='6'>Aucun paiement.</td></tr>{% endfor %}</table></div></section>
 """
 MESSAGES = """
 <section class='panel'><h2>Nouveau message</h2><form method='post' class='message-form'><label>Destinataire<select name='destinataire'><option>Tous</option><option>Administration</option><option>Enseignants</option><option>Parents</option><option>Élèves</option></select></label><label>Objet<input name='sujet' required></label><label>Message<textarea name='contenu' rows='4' required></textarea></label><button class='btn primary'>Envoyer</button></form></section>
@@ -796,24 +805,102 @@ def bulletin_pdf():
 @app.route("/finances", methods=["GET","POST"])
 @login_required
 def finances():
-    admin=current_user.role=="admin"
-    if request.method=="POST":
+    admin = current_user.role == "admin"
+    if request.method == "POST":
         if not admin: abort(403)
-        devise=request.form.get("devise", "CDF").upper()
-        if devise not in ("CDF", "USD"): abort(400)
-        p=Payment(student_id=int(request.form["student_id"]),libelle=request.form["libelle"].strip(),
-                  montant=int(request.form["montant"]),devise=devise,statut=request.form["statut"])
-        db.session.add(p); db.session.commit(); flash("Paiement enregistré.","success"); return redirect(url_for("finances"))
-    query=Payment.query.join(Student)
+        try:
+            student_id = int(request.form.get("student_id", ""))
+            montant = int(request.form.get("montant", ""))
+        except (TypeError, ValueError):
+            abort(400)
+        student = db.session.get(Student, student_id)
+        libelle = request.form.get("libelle", "").strip()
+        devise = request.form.get("devise", "CDF").upper()
+        statut = request.form.get("statut", "En attente")
+        if not student or not libelle or montant <= 0 or devise not in ("CDF", "USD") or statut not in ("Payé", "En attente"):
+            abort(400)
+        payment = Payment(student_id=student.id, libelle=libelle, montant=montant,
+                          devise=devise, statut=statut,
+                          date_paiement=date.today() if statut == "Payé" else None)
+        db.session.add(payment)
+        db.session.commit()
+        flash("Paiement enregistré.", "success")
+        return redirect(url_for("finances"))
+    query = Payment.query.join(Student)
     if not admin:
         if current_user.role == "parent":
-            child_ids=[child.id for child in parent_children(current_user)]
-            query=query.filter(Payment.student_id.in_(child_ids)) if child_ids else query.filter(db.false())
+            ids = [child.id for child in parent_children(current_user)]
+            query = query.filter(Payment.student_id.in_(ids)) if ids else query.filter(db.false())
+        elif current_user.role == "eleve" and current_user.student_id:
+            query = query.filter(Payment.student_id == current_user.student_id)
         else:
-            if not current_user.student_id: return page("Finances",FINANCES,admin=False,paiements=[])
-            query=query.filter(Payment.student_id==current_user.student_id)
-    return page("Finances scolaires",FINANCES,admin=admin,paiements=query.order_by(Payment.id.desc()).all(),
-                students=Student.query.order_by(Student.nom).all() if admin else [])
+            abort(403)
+    paiements = query.order_by(Payment.id.desc()).all()
+    totaux = {currency: {"paye": 0, "attente": 0} for currency in ("CDF", "USD")}
+    for payment in paiements:
+        if payment.devise in totaux:
+            key = "paye" if payment.statut == "Payé" else "attente"
+            totaux[payment.devise][key] += payment.montant
+    return page("Finances scolaires", FINANCES, admin=admin, paiements=paiements,
+                totaux=totaux, students=Student.query.order_by(Student.nom).all() if admin else [])
+
+
+@app.route("/finances/<int:payment_id>/recu.pdf")
+@login_required
+def payment_receipt_pdf(payment_id):
+    payment = db.get_or_404(Payment, payment_id)
+    if current_user.role == "admin":
+        pass
+    elif current_user.role == "parent":
+        if payment.student_id not in [child.id for child in parent_children(current_user)]: abort(403)
+    elif current_user.role == "eleve":
+        if current_user.student_id != payment.student_id: abort(403)
+    else:
+        abort(403)
+    if payment.statut != "Payé":
+        abort(400, description="Un reçu définitif est disponible uniquement pour un paiement marqué Payé.")
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    except ImportError:
+        abort(503, description="ReportLab est absent. Installez requirements.txt.")
+    buffer = BytesIO()
+    green = colors.HexColor("#075b49")
+    gold = colors.HexColor("#b58b26")
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=22*mm, leftMargin=22*mm,
+                            topMargin=25*mm, bottomMargin=25*mm, title="Reçu de paiement scolaire")
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="ReceiptSchool", parent=styles["Title"],
+                              fontSize=20, textColor=green, alignment=1, spaceAfter=5))
+    story = [Paragraph("ECOLE LA BONTE", styles["ReceiptSchool"]),
+             Paragraph("LUBUMBASHI - RECU DE PAIEMENT SCOLAIRE", styles["Heading2"]), Spacer(1, 18)]
+    rows = [
+        ["NUMERO DU RECU", "REC-{:06d}".format(payment.id)],
+        ["DATE", (payment.date_paiement or date.today()).strftime("%d/%m/%Y")],
+        ["ELEVE", payment.eleve.nom],
+        ["MATRICULE", payment.eleve.matricule],
+        ["MOTIF", payment.libelle],
+        ["MONTANT RECU", "{:,.0f} {}".format(payment.montant, payment.devise).replace(",", " ")],
+        ["STATUT", payment.statut]
+    ]
+    table = Table(rows, colWidths=[55*mm, 105*mm], rowHeights=[15*mm]*len(rows))
+    table.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(0,-1),colors.HexColor("#edf3ef")),
+        ("TEXTCOLOR",(0,0),(0,-1),green),("FONTNAME",(0,0),(0,-1),"Helvetica-Bold"),
+        ("GRID",(0,0),(-1,-1),.6,colors.HexColor("#c8d5cc")),
+        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),10),
+        ("RIGHTPADDING",(0,0),(-1,-1),10),("FONTSIZE",(0,0),(-1,-1),10),
+        ("BOX",(0,0),(-1,-1),1,gold)
+    ]))
+    story.extend([table, Spacer(1, 35),
+                  Paragraph("Signature et cachet de la caisse : ______________________________", styles["Normal"])])
+    doc.build(story)
+    buffer.seek(0)
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True,
+                     download_name="recu-REC-{:06d}.pdf".format(payment.id))
 
 @app.route("/messages", methods=["GET","POST"])
 @login_required
