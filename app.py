@@ -686,12 +686,12 @@ REENROLLMENTS = """
 <label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }} · {{ s.classe }}</option>{% endfor %}</select></label>
 <label>Année académique<input name='annee_academique' required value='2026-2027' pattern='[0-9]{4}-[0-9]{4}'></label>
 <label>Cycle scolaire<select name='niveau_scolaire' id='reenroll-level'><option value=''>Conserver l'ancien dossier</option>{% for niveau in niveaux %}<option value='{{ niveau }}'>{{ niveau }}</option>{% endfor %}</select></label>
-<label>Nouvelle classe<select name='classe' id='reenroll-class' required><option value=''>Choisir le cycle ou saisir l'ancien niveau</option></select></label>
+<label>Nouvelle classe<input name='classe' id='reenroll-class' list='reenroll-classes' required placeholder='Ex. 2e année primaire'><datalist id='reenroll-classes'></datalist></label>
 <label id='reenroll-option-wrap' hidden>Option / section<select name='option_scolaire' id='reenroll-option'><option value=''>Choisir une option</option>{% for option in options_secondaire %}<option>{{ option }}</option>{% endfor %}</select></label>
 <label>Promotion / année<input name='promotion' required></label>
 <button class='btn primary'>Confirmer la réinscription</button></form></section>
 <script>
-(()=>{const options={{ niveaux_scolaires|tojson }};const level=document.getElementById('reenroll-level');const cls=document.getElementById('reenroll-class');const opt=document.getElementById('reenroll-option');const wrap=document.getElementById('reenroll-option-wrap');function sync(){cls.innerHTML='<option value="">Choisir une classe</option>';if(!level.value){const o=document.createElement('option');o.value='Ancienne classe';o.textContent='Ancienne classe (à préciser dans le champ promotion si nécessaire)';cls.appendChild(o)}for(const item of (options[level.value]||[])){const o=document.createElement('option');o.value=item;o.textContent=item;cls.appendChild(o)}wrap.hidden=level.value!=='Secondaire';opt.required=level.value==='Secondaire';if(!opt.required)opt.value=''}level.addEventListener('change',sync);})();
+(()=>{const options={{ niveaux_scolaires|tojson }};const level=document.getElementById('reenroll-level');const list=document.getElementById('reenroll-classes');const opt=document.getElementById('reenroll-option');const wrap=document.getElementById('reenroll-option-wrap');function sync(){list.innerHTML='';for(const item of (options[level.value]||[])){const o=document.createElement('option');o.value=item;list.appendChild(o)}wrap.hidden=level.value!=='Secondaire';opt.required=level.value==='Secondaire';if(!opt.required)opt.value=''}level.addEventListener('change',sync);})();
 </script>
 
 <section class='panel'><h2>Historique des inscriptions</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Année</th><th>Promotion</th><th>Classe</th><th>Date</th><th>Document</th></tr>
