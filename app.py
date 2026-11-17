@@ -214,7 +214,7 @@ def dashboard():
         eleves_avec_notes = [s for s in Student.query.all() if s.notes]
         seuil = float(os.getenv("PASS_MARK", "10"))
         reussite = round(100 * sum(1 for s in eleves_avec_notes if s.moyenne >= seuil) / len(eleves_avec_notes), 1) if eleves_avec_notes else 0
-        return page("Tableau de bord", DASH_ADMIN, reussite=reussite,
+        return page("Tableau de bord", DASH_ADMIN, reussite=reussite, total=Student.query.count(),
             enseignants=User.query.filter_by(role="enseignant").count(),
             recettes=db.session.query(db.func.coalesce(db.func.sum(Payment.montant),0)).filter_by(statut="Payé").scalar(),
             payes=Payment.query.filter_by(statut="Payé").count(), nb_paiements=Payment.query.count(),
