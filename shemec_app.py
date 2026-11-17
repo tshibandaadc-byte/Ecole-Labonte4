@@ -122,6 +122,19 @@ class Payment(db.Model):
     date_paiement = db.Column(db.Date, nullable=True)
 
 
+class SchoolExpense(db.Model):
+    __tablename__ = "school_expense"
+    id = db.Column(db.Integer, primary_key=True)
+    libelle = db.Column(db.String(160), nullable=False)
+    categorie = db.Column(db.String(80), nullable=False, default="Fonctionnement")
+    montant = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+    date_depense = db.Column(db.Date, nullable=False, default=date.today)
+    reference = db.Column(db.String(80), nullable=True)
+    auteur_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    auteur = db.relationship("User")
+
+
 class SchoolFee(db.Model):
     __tablename__ = "school_fee"
     id = db.Column(db.Integer, primary_key=True)
@@ -617,7 +630,18 @@ BULLETIN = """
 """
 
 FINANCES = """
-{% if admin %}<section class='panel'><h2>Enregistrer un paiement</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Libellé<input name='libelle' required placeholder='Frais scolaires'></label><label>Montant<input type='number' name='montant' min='1' step='1' required></label><label>Devise<select name='devise' required><option value='CDF'>CDF — Franc congolais</option><option value='USD'>USD — Dollar américain</option></select></label><label>Statut<select name='statut'><option>Payé</option><option>En attente</option></select></label><button class='btn primary'>Ajouter</button></form></section>{% endif %}
+{% if admin %}
+<section class='panel'><h2>Enregistrer une dépense</h2>
+<form method='post' class='inline-form'>
+<input type='hidden' name='action' value='expense'>
+<label>Libellé<input name='expense_label' maxlength='160' required placeholder='Ex. Achat de fournitures'></label>
+<label>Catégorie<select name='expense_category'><option>Fonctionnement</option><option>Personnel</option><option>Équipement</option><option>Entretien</option><option>Transport</option><option>Autre</option></select></label>
+<label>Montant<input type='number' name='expense_amount' min='1' step='1' required></label>
+<label>Devise<select name='expense_currency'><option value='CDF'>CDF</option><option value='USD'>USD</option></select></label>
+<label>Date<input type='date' name='expense_date' required></label>
+<label>Référence<input name='expense_reference' maxlength='80'></label>
+<button class='btn primary'>Enregistrer la dépense</button></form></section>
+<section class='panel'><h2>Enregistrer un paiement</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Libellé<input name='libelle' required placeholder='Frais scolaires'></label><label>Montant<input type='number' name='montant' min='1' step='1' required></label><label>Devise<select name='devise' required><option value='CDF'>CDF — Franc congolais</option><option value='USD'>USD — Dollar américain</option></select></label><label>Statut<select name='statut'><option>Payé</option><option>En attente</option></select></label><button class='btn primary'>Ajouter</button></form></section>{% endif %}
 <section class='panel'><h2>Soldes et suivi des paiements</h2>
 <div class='stats-grid'>
 <article class='stat'><small>Payé en CDF</small><strong>{{ "{:,.0f}".format(totaux.CDF.paye).replace(",", " ") }} CDF</strong></article>
@@ -627,6 +651,14 @@ FINANCES = """
 </div><div class='table-wrap'><table><tr><th>Élève</th><th>Libellé</th><th>Montant</th><th>Devise</th><th>Statut</th><th>Reçu</th></tr>
 {% for p in paiements %}<tr><td>{{ p.eleve.nom }}</td><td>{{ p.libelle }}</td><td>{{ "{:,.0f}".format(p.montant).replace(",", " ") }}</td><td>{{ p.devise }}</td><td>{{ p.statut }}</td><td><a class='btn outline' href='/finances/{{ p.id }}/recu.pdf'>PDF</a></td></tr>
 {% else %}<tr><td colspan='6'>Aucun paiement.</td></tr>{% endfor %}</table></div></section>
+{% if admin %}
+<section class='panel'><h2>État des dépenses</h2>
+<div class='stats-grid'><article class='stat'><small>Dépenses en CDF</small><strong>{{ "{:,.0f}".format(depenses_totales.CDF).replace(",", " ") }} CDF</strong></article>
+<article class='stat'><small>Dépenses en USD</small><strong>{{ "{:,.0f}".format(depenses_totales.USD).replace(",", " ") }} USD</strong></article></div>
+<div class='table-wrap'><table><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Montant</th><th>Devise</th><th>Référence</th></tr>
+{% for d in depenses %}<tr><td>{{ d.date_depense.strftime('%d/%m/%Y') }}</td><td>{{ d.libelle }}</td><td>{{ d.categorie }}</td><td>{{ "{:,.0f}".format(d.montant).replace(",", " ") }}</td><td>{{ d.devise }}</td><td>{{ d.reference or '—' }}</td></tr>
+{% else %}<tr><td colspan='6'>Aucune dépense enregistrée.</td></tr>{% endfor %}</table></div></section>
+{% endif %}
 """
 
 FEES = """
@@ -1276,6 +1308,24 @@ def finances():
     admin = current_user.role == "admin"
     if request.method == "POST":
         if not admin: abort(403)
+        if request.form.get("action") == "expense":
+            label = request.form.get("expense_label", "").strip()
+            category = request.form.get("expense_category", "Fonctionnement").strip()
+            currency = request.form.get("expense_currency", "CDF").upper()
+            reference = request.form.get("expense_reference", "").strip()[:80] or None
+            try:
+                amount = int(request.form.get("expense_amount", ""))
+                expense_date = datetime.strptime(request.form.get("expense_date", ""), "%Y-%m-%d").date()
+            except (TypeError, ValueError):
+                abort(400)
+            if not label or not category or amount <= 0 or currency not in ("CDF", "USD"):
+                abort(400)
+            db.session.add(SchoolExpense(libelle=label, categorie=category, montant=amount,
+                devise=currency, date_depense=expense_date, reference=reference,
+                auteur_id=current_user.id))
+            db.session.commit()
+            flash("Dépense enregistrée dans la caisse.", "success")
+            return redirect(url_for("finances"))
         try:
             student_id = int(request.form.get("student_id", ""))
             montant = int(request.form.get("montant", ""))
@@ -1309,8 +1359,14 @@ def finances():
         if payment.devise in totaux:
             key = "paye" if payment.statut == "Payé" else "attente"
             totaux[payment.devise][key] += payment.montant
+    expenses = SchoolExpense.query.order_by(SchoolExpense.date_depense.desc(), SchoolExpense.id.desc()).all() if admin else []
+    depenses_totales = {currency: 0 for currency in ("CDF", "USD")}
+    for expense in expenses:
+        if expense.devise in depenses_totales:
+            depenses_totales[expense.devise] += expense.montant
     return page("Finances scolaires", FINANCES, admin=admin, paiements=paiements,
-                totaux=totaux, students=Student.query.order_by(Student.nom).all() if admin else [])
+                totaux=totaux, depenses=expenses, depenses_totales=depenses_totales,
+                students=Student.query.order_by(Student.nom).all() if admin else [])
 
 
 @app.route("/finances/<int:payment_id>/recu.pdf")
