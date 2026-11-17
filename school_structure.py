@@ -4,14 +4,16 @@ Les libellés sont centralisés ici pour être réutilisés par les formulaires,
 les validations et les tests. Les champs universitaires historiques restent
 compatibles avec les anciens dossiers.
 """
+ORDINAUX_FR = ("1re", "2e", "3e", "4e", "5e", "6e")
+
 NIVEAUX_SCOLAIRES = {
     "Maternelle": (
         "1re année maternelle",
         "2e année maternelle",
         "3e année maternelle",
     ),
-    "Primaire": tuple(f"{n}e année primaire" for n in range(1, 7)),
-    "Secondaire": tuple(f"{n}e secondaire" for n in range(1, 7)),
+    "Primaire": tuple(f"{ordinal} année primaire" for ordinal in ORDINAUX_FR),
+    "Secondaire": tuple(f"{ordinal} secondaire" for ordinal in ORDINAUX_FR),
 }
 
 OPTIONS_SECONDAIRE = (
