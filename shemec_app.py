@@ -130,6 +130,7 @@ class SchoolFee(db.Model):
     libelle = db.Column(db.String(140), nullable=False)
     montant = db.Column(db.Integer, nullable=False)
     devise = db.Column(db.String(3), nullable=False, default="CDF")
+    date_echeance = db.Column(db.Date, nullable=True)
     cree_le = db.Column(db.DateTime, default=datetime.utcnow)
     versements = db.relationship("FeePayment", cascade="all,delete-orphan", backref="frais")
     __table_args__ = (db.UniqueConstraint("classe", "annee_academique", "libelle", "devise",
@@ -640,8 +641,10 @@ FEES = """
 <label>Année académique<input name='annee_academique' required value='2026-2027'></label>
 <label>Intitulé<input name='libelle' required placeholder='Frais scolaires'></label>
 <label>Montant total<input type='number' name='montant' min='1' step='1' required></label>
+<label>Date limite de paiement<input type='date' name='date_echeance'></label>
 <label>Devise<select name='devise'><option value='CDF'>CDF</option><option value='USD'>USD</option></select></label>
 <button class='btn primary'>Créer les frais</button></form></section>
+<section class='panel'><h2>Rappels des frais en retard</h2><p>Envoie une notification interne aux parents des élèves ayant encore un solde impayé après la date limite. Les rappels déjà envoyés ne sont pas dupliqués.</p><form method='post'><input type='hidden' name='action' value='send_due_reminders'><button class='btn primary'>Envoyer les rappels échus</button></form></section>
 <section class='panel'><h2>Enregistrer un versement</h2>
 <form method='post' class='inline-form'>
 <input type='hidden' name='action' value='record_payment'>
@@ -652,9 +655,9 @@ FEES = """
 <button class='btn primary'>Enregistrer le versement</button></form></section>
 {% endif %}
 <section class='panel'><h2>État des frais et soldes</h2>
-<div class='table-wrap'><table><tr><th>Élève</th><th>Classe</th><th>Année</th><th>Frais</th><th>Total dû</th><th>Payé</th><th>Reste</th><th>Devise</th></tr>
-{% for row in soldes %}<tr><td>{{ row.eleve.nom }}</td><td>{{ row.eleve.classe }}</td><td>{{ row.frais.annee_academique }}</td><td>{{ row.frais.libelle }}</td><td>{{ "{:,.0f}".format(row.total).replace(",", " ") }}</td><td>{{ "{:,.0f}".format(row.paye).replace(",", " ") }}</td><td><b>{{ "{:,.0f}".format(row.reste).replace(",", " ") }}</b></td><td>{{ row.frais.devise }}</td></tr>
-{% else %}<tr><td colspan='8'>Aucun frais applicable pour cette année académique.</td></tr>{% endfor %}</table></div></section>
+<div class='table-wrap'><table><tr><th>Élève</th><th>Classe</th><th>Année</th><th>Frais</th><th>Échéance</th><th>Total dû</th><th>Payé</th><th>Reste</th><th>Devise</th></tr>
+{% for row in soldes %}<tr><td>{{ row.eleve.nom }}</td><td>{{ row.eleve.classe }}</td><td>{{ row.frais.annee_academique }}</td><td>{{ row.frais.libelle }}</td><td>{{ row.frais.date_echeance.strftime('%d/%m/%Y') if row.frais.date_echeance else "Non définie" }}</td><td>{{ "{:,.0f}".format(row.total).replace(",", " ") }}</td><td>{{ "{:,.0f}".format(row.paye).replace(",", " ") }}</td><td><b>{{ "{:,.0f}".format(row.reste).replace(",", " ") }}</b></td><td>{{ row.frais.devise }}</td></tr>
+{% else %}<tr><td colspan='9'>Aucun frais applicable pour cette année académique.</td></tr>{% endfor %}</table></div></section>
 <section class='panel'><h2>Historique des versements</h2>
 <div class='table-wrap'><table><tr><th>Date</th><th>Élève</th><th>Frais</th><th>Montant</th><th>Référence</th><th>Reçu</th></tr>
 {% for v in versements %}<tr><td>{{ v.date_paiement.strftime('%d/%m/%Y') }}</td><td>{{ v.eleve.nom }}</td><td>{{ v.frais.libelle }}</td><td>{{ "{:,.0f}".format(v.montant).replace(",", " ") }} {{ v.frais.devise }}</td><td>{{ v.reference or '-' }}</td><td><a class='btn outline' href='/frais/versement/{{ v.id }}/recu.pdf'>PDF</a></td></tr>
@@ -1375,12 +1378,46 @@ def school_fees():
     if request.method == "POST":
         if not admin: abort(403)
         action = request.form.get("action", "")
+        if action == "send_due_reminders":
+            today = date.today()
+            alert_sender = current_app.extensions.get("shemec_parent_alert")
+            sent = 0
+            if alert_sender:
+                due_fees = SchoolFee.query.filter(
+                    SchoolFee.date_echeance.isnot(None),
+                    SchoolFee.date_echeance <= today
+                ).all()
+                for fee in due_fees:
+                    affected_students = Student.query.filter(
+                        db.func.lower(db.func.trim(Student.classe)) == fee.classe.casefold()
+                    ).all()
+                    for affected in affected_students:
+                        paid = db.session.query(
+                            db.func.coalesce(db.func.sum(FeePayment.montant), 0)
+                        ).filter_by(fee_id=fee.id, student_id=affected.id).scalar()
+                        remaining = max(0, fee.montant - int(paid or 0))
+                        if not remaining:
+                            continue
+                        created = alert_sender(
+                            affected, "Échéance de paiement dépassée",
+                            "{} : échéance du {} dépassée. Solde restant : {:,.0f} {}. Merci de contacter la caisse de l'École Shemec.".format(
+                                fee.libelle, fee.date_echeance.strftime("%d/%m/%Y"),
+                                remaining, fee.devise
+                            ).replace(",", " "),
+                            "echeance-{}".format(fee.id)
+                        )
+                        sent += created
+            db.session.commit()
+            flash("{} notification(s) de rappel envoyée(s) aux parents. Les doublons sont évités.".format(sent), "success")
+            return redirect(url_for("school_fees"))
         if action == "create_fee":
             classe = request.form.get("classe", "").strip()
             year = request.form.get("annee_academique", "").strip()
             label = request.form.get("libelle", "").strip()
             currency = request.form.get("devise", "CDF").upper()
+            raw_due_date = request.form.get("date_echeance", "").strip()
             try:
+                due_date = datetime.strptime(raw_due_date, "%Y-%m-%d").date() if raw_due_date else None
                 amount = int(request.form.get("montant", ""))
             except (TypeError, ValueError):
                 abort(400)
@@ -1392,7 +1429,8 @@ def school_fees():
                 flash("Ces frais existent déjà pour cette classe et cette année.", "warning")
             else:
                 fee = SchoolFee(classe=classe, annee_academique=year,
-                                 libelle=label, montant=amount, devise=currency)
+                                 libelle=label, montant=amount, devise=currency,
+                                 date_echeance=due_date)
                 db.session.add(fee)
                 db.session.flush()
                 alert_sender = current_app.extensions.get("shemec_parent_alert")
@@ -2595,7 +2633,8 @@ with app.app_context():
         "admission_application": {"niveau_scolaire":"VARCHAR(30)","option_scolaire":"VARCHAR(80)"},
         "grade": {"annee_academique":"VARCHAR(20) DEFAULT '2026-2027'","promotion":"VARCHAR(80) DEFAULT ''"},
         "payment": {"devise":"VARCHAR(3) NOT NULL DEFAULT 'CDF'"},
-        "course_slot": {"annee_academique":"VARCHAR(20)"}
+        "course_slot": {"annee_academique":"VARCHAR(20)"},
+        "school_fee": {"date_echeance":"DATE"}
     }.items():
         existing={col["name"] for col in insp.get_columns(table)}
         for col, definition in columns.items():
