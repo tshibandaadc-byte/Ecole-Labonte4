@@ -568,8 +568,8 @@ DETAIL = """
 <div class='actions'><a class='btn primary' href='/eleves/{{ s.id }}/carte'>Carte élève / QR code</a><a class='btn outline' href='/eleves/{{ s.id }}/inscription.pdf'>Document d'inscription PDF</a><a class='btn primary' href='/eleves/{{ s.id }}/modifier'>Modifier</a><form method='post' action='/eleves/{{ s.id }}/supprimer' onsubmit="return confirm('Supprimer ce dossier ?')"><button class='btn danger'>Supprimer</button></form></div></section>
 """
 GRADES = """
-{% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<input name='periode' value='Trimestre 1'></label><button class='btn primary'>Enregistrer</button></form></section>
-{% elif teacher %}<section class='panel'><h2>Saisir une note pour un cours affecté</h2><p>Vous ne pouvez évaluer que les élèves de vos classes et les cours qui vous sont attribués.</p><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.classe }}</option>{% endfor %}</select></label><label>Cours affecté<select name='assignment_id' required>{% for a in assignments %}<option value='{{ a.id }}'>{{ a.cours }} · {{ a.classe }} · {{ a.annee_academique }}</option>{% endfor %}</select></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<input name='periode' value='Trimestre 1' required></label><button class='btn primary' {% if not assignments or not students %}disabled{% endif %}>Enregistrer la note</button></form>{% if not assignments %}<p>Aucun cours ne vous est affecté. Contactez l'administration.</p>{% endif %}</section>{% endif %}
+{% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Année académique<input name='annee_academique' value='2026-2027' pattern='[0-9]{4}-[0-9]{4}' required></label><label>Période<select name='periode' required><option>Trimestre 1</option><option>Trimestre 2</option><option>Trimestre 3</option><option>Examen</option></select></label><button class='btn primary'>Enregistrer</button></form></section>
+{% elif teacher %}<section class='panel'><h2>Saisir une note pour un cours affecté</h2><p>Vous ne pouvez évaluer que les élèves de vos classes et les cours qui vous sont attribués.</p><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.classe }}</option>{% endfor %}</select></label><label>Cours affecté<select name='assignment_id' required>{% for a in assignments %}<option value='{{ a.id }}'>{{ a.cours }} · {{ a.classe }} · {{ a.annee_academique }}</option>{% endfor %}</select></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<select name='periode' required><option>Trimestre 1</option><option>Trimestre 2</option><option>Trimestre 3</option><option>Examen</option></select></label><button class='btn primary' {% if not assignments or not students %}disabled{% endif %}>Enregistrer la note</button></form>{% if not assignments %}<p>Aucun cours ne vous est affecté. Contactez l'administration.</p>{% endif %}</section>{% endif %}
 <section class='panel'><h2>Résultats et notes</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in notes %}<tr><td>{{ n.eleve.nom }}</td><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td><b>{{ n.note }}/20</b></td></tr>{% else %}<tr><td colspan='4'>Aucune note disponible.</td></tr>{% endfor %}</table></div></section>
 """
 
@@ -604,7 +604,7 @@ BULLETIN = """
 {% for group in groups %}
 <section class='panel'>
   <div class='bulletin-head'><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h2>Bulletin scolaire</h2><p>Année académique {{ group.annee }} · {{ group.periode }}</p></div><div class='bulletin-mark'>✦</div></div>
-  <div class='bulletin-meta'><div><small>ÉLÈVE</small><b>{{ student.nom }}</b></div><div><small>MATRICULE</small><b>{{ student.matricule }}</b></div><div><small>FACULTÉ / FILIÈRE</small><b>{{ student.faculte }} · {{ student.filiere }}</b></div><div><small>PROMOTION / CLASSE</small><b>{{ student.promotion }} · {{ student.classe }}</b></div></div>
+  <div class='bulletin-meta'><div><small>ÉLÈVE</small><b>{{ student.nom }}</b></div><div><small>MATRICULE</small><b>{{ student.matricule }}</b></div><div><small>CYCLE SCOLAIRE</small><b>{{ student.niveau_scolaire or student.faculte }}{% if student.option_scolaire %} · {{ student.option_scolaire }}{% endif %}</b></div><div><small>ANNÉE / CLASSE</small><b>{{ student.promotion }} · {{ student.classe }}</b></div></div>
   <div class='table-wrap'><table><tr><th>Matière / Cours</th><th>Note obtenue</th><th>Maximum</th></tr>{% for n in group.notes %}<tr><td>{{ n.cours }}</td><td><b>{{ '%.2f'|format(n.note) }}</b></td><td>20</td></tr>{% endfor %}</table></div>
   <div class='bulletin-summary'><div><small>Moyenne générale</small><strong>{{ '%.2f'|format(group.moyenne) }}/20</strong></div><div><small>Appréciation</small><strong>{{ group.appreciation }}</strong></div><div><small>Résultat</small><strong>{{ 'Admis' if group.moyenne >= 10 else 'À renforcer' }}</strong></div></div>
   <div class='signature-row'><div>Le titulaire</div><div>La Direction</div></div>
@@ -967,9 +967,11 @@ def notes():
             cours=assignment.cours
         elif not student or not cours:
             abort(400)
+        year = assignment.annee_academique if is_teacher else request.form.get("annee_academique", "").strip()
+        if not re.fullmatch(r"\\d{4}-\\d{4}", year): abort(400)
         n=Grade(student_id=student.id,cours=cours,note=note,
             periode=request.form.get("periode","Trimestre 1").strip() or "Trimestre 1",
-            annee_academique=(assignment.annee_academique if is_teacher else "2026-2027"))
+            annee_academique=year, promotion=student.promotion)
         db.session.add(n); db.session.commit()
         flash("Note enregistrée.", "success")
         return redirect(url_for("notes"))
@@ -1144,8 +1146,8 @@ def bulletin_pdf():
         info = [
             [Paragraph("<b>ÉLÈVE</b><br/>"+escape(student.nom), styles["Normal"]),
              Paragraph("<b>MATRICULE</b><br/>"+escape(student.matricule), styles["Normal"])],
-            [Paragraph("<b>FACULTÉ / FILIÈRE</b><br/>"+escape(student.faculte)+" / "+escape(student.filiere), styles["Normal"]),
-             Paragraph("<b>PROMOTION / CLASSE</b><br/>"+escape(student.promotion)+" / "+escape(student.classe), styles["Normal"])]
+            [Paragraph("<b>CYCLE SCOLAIRE</b><br/>"+escape(student.niveau_scolaire or student.faculte)+" / "+escape(student.option_scolaire or student.filiere), styles["Normal"]),
+             Paragraph("<b>ANNÉE / CLASSE</b><br/>"+escape(student.promotion)+" / "+escape(student.classe), styles["Normal"])]
         ]
         t=Table(info,colWidths=[87*mm,87*mm],rowHeights=[17*mm,17*mm])
         t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#f1f6f2")),
