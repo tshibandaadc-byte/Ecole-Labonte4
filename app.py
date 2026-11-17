@@ -25,8 +25,8 @@ register_class_routes(
 register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page)
 
 core.BASE = core.BASE.replace(
-    \"<a href='/horaire'>▦ Emploi du temps</a>\",
-    \"<a href='/horaire'>▦ Emploi du temps</a><a href='/planning-cours'>▤ Planning des cours</a>\"
+    "<a href='/horaire'>▦ Emploi du temps</a>",
+    "<a href='/horaire'>▦ Emploi du temps</a><a href='/planning-cours'>▤ Planning des cours</a>"
 )
 
 if __name__ == "__main__":
