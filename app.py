@@ -1049,8 +1049,7 @@ def bulletins():
             classe_results = db.session.query(Grade.student_id, Grade.note).join(Student).filter(
                 Student.classe == student.classe,
                 Grade.annee_academique == annee,
-                Grade.periode == periode,
-                Grade.promotion == student.promotion
+                Grade.periode == periode
             ).all()
             classement = classement_classe(classe_results, student.id)
             seuil = float(os.getenv("PASS_MARK", "10"))
@@ -1170,10 +1169,10 @@ def bulletin_pdf():
         story += [table, Spacer(1,10)]
         if rows:
             avg=sum(n.note for n in rows)/len(rows)
-            appr=("Très bien" if avg>=16 else "Bien" if avg>=14 else
-                  "Assez bien" if avg>=12 else "Passable" if avg>=10 else "Insuffisant")
+            appr=appreciation(avg)
+            seuil=float(os.getenv("PASS_MARK", "10"))
             summary=[["MOYENNE GÉNÉRALE","APPRÉCIATION","RÉSULTAT"],
-                     ["{:.2f}/20".format(avg),appr,"Admis" if avg>=10 else "À renforcer"]]
+                     ["{:.2f}/20".format(avg),appr,decision_passage(avg, seuil)]]
         else:
             summary=[["MOYENNE GÉNÉRALE","APPRÉCIATION","RÉSULTAT"],["—","—","En attente de notes"]]
         st=Table(summary,colWidths=[58*mm,58*mm,58*mm])
