@@ -29,6 +29,12 @@ login.login_view = "connexion"
 login.login_message = "Connectez-vous pour accéder à cette page."
 ALLOWED = {"jpg", "jpeg", "png", "webp"}
 
+parent_student = db.Table(
+    "parent_student",
+    db.Column("parent_id", db.Integer, db.ForeignKey("user.id"), primary_key=True),
+    db.Column("student_id", db.Integer, db.ForeignKey("student.id"), primary_key=True)
+)
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nom = db.Column(db.String(140), nullable=False)
@@ -36,6 +42,8 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="eleve")
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=True)
+    enfants = db.relationship("Student", secondary=parent_student,
+        backref=db.backref("parents", lazy="select"), lazy="select")
     def set_password(self, raw): self.password = generate_password_hash(raw)
     def verify(self, raw): return check_password_hash(self.password, raw)
 
@@ -144,6 +152,17 @@ class TeacherAssignment(db.Model):
 @login.user_loader
 def load_user(uid): return db.session.get(User, int(uid))
 
+def parent_children(user):
+    """Retourne uniquement les élèves explicitement liés au compte parent."""
+    if user.role != "parent":
+        return []
+    children = list(user.enfants)
+    if user.student_id:
+        legacy = db.session.get(Student, user.student_id)
+        if legacy and legacy not in children:
+            children.append(legacy)
+    return children
+
 def admin_only(fn):
     @wraps(fn)
     @login_required
@@ -197,6 +216,11 @@ DASH_USER = """
 <section class='hero'><div><small>MON ESPACE SCOLAIRE</small><h2>Bienvenue, {{ current_user.nom }}</h2><p>Retrouvez vos informations et vos résultats.</p></div><span>✦</span></section>
 {% if student %}<section class='panel profile'><img src='/static/uploads/{{ student.photo }}'><div><small>MATRICULE {{ student.matricule }}</small><h2>{{ student.nom }}</h2><p>{{ student.filiere }} · {{ student.classe }} · {{ student.promotion }}</p><b>Moyenne : {{ student.moyenne }}/20</b><p>Absences enregistrées : <strong>{{ absences }}</strong></p></div></section>{% else %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève. Contactez l'administration.</section>{% endif %}
 <div class='quick'><a href='/notes'>▤ <b>Mes notes</b><small>Voir mes résultats</small></a><a href='/messages'>✉ <b>Messages</b><small>Contacter l'école</small></a><a href='/finances'>◈ <b>Paiements</b><small>Suivre mes frais</small></a></div>
+"""
+DASH_PARENT = """
+<section class='hero'><div><small>ESPACE PARENT</small><h2>Bienvenue, {{ current_user.nom }}</h2><p>Consultez les informations scolaires de vos enfants.</p></div><span>✦</span></section>
+{% for item in children %}<section class='panel profile'><img src='/static/uploads/{{ item.student.photo }}'><div><small>MATRICULE {{ item.student.matricule }}</small><h2>{{ item.student.nom }}</h2><p>{{ item.student.filiere }} · {{ item.student.classe }} · {{ item.student.promotion }}</p><b>Moyenne : {{ item.student.moyenne }}/20</b><p>Absences : <strong>{{ item.absences }}</strong> · Paiements : <strong>{{ item.payments }}</strong></p></div></section>{% else %}<section class='panel'>Aucun enfant n'est encore lié à ce compte. Contactez l'administration.</section>{% endfor %}
+<div class='quick'><a href='/notes'>▤ <b>Résultats</b><small>Notes des enfants</small></a><a href='/messages'>✉ <b>Messages</b><small>Contacter l'école</small></a><a href='/finances'>◈ <b>Paiements</b><small>Suivre les frais</small></a></div>
 """
 STUDENTS = """
 <section class='panel'><div class='panel-head'><div><h2>Liste des élèves</h2><p>{{ students|length }} dossier(s)</p></div><a class='btn primary' href='/eleves/nouveau'>＋ Ajouter un élève</a></div>
@@ -264,9 +288,11 @@ SCHEDULE = """
 <section class='panel'><h2>Horaire des cours</h2><div class='table-wrap'><table><tr><th>Jour</th><th>Heure</th><th>Classe</th><th>Cours</th><th>Enseignant</th></tr>{% for c in cours %}<tr><td>{{ c.jour }}</td><td>{{ c.debut }}–{{ c.fin }}</td><td>{{ c.classe }}</td><td>{{ c.cours }}</td><td>{{ c.enseignant }}</td></tr>{% else %}<tr><td colspan='5'>Aucun cours programmé.</td></tr>{% endfor %}</table></div></section>
 """
 ACCOUNTS = """
-<section class='panel'><h2>Créer un compte utilisateur</h2><p>Les comptes sont créés par l'administration. Pour un compte élève, liez-le à son dossier.</p>
-<form method='post' class='inline-form'><label>Nom complet<input name='nom' required></label><label>E-mail<input name='email' type='email' required></label><label>Mot de passe provisoire<input name='password' type='password' minlength='10' required></label><label>Rôle<select name='role'><option value='eleve'>Élève</option><option value='parent'>Parent</option><option value='enseignant'>Enseignant</option><option value='admin'>Administrateur</option></select></label><label>Dossier élève (facultatif)<select name='student_id'><option value=''>Non lié</option>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><button class='btn primary'>Créer le compte</button></form></section>
-<section class='panel'><h2>Comptes existants</h2><div class='table-wrap'><table><tr><th>Nom</th><th>E-mail</th><th>Rôle</th></tr>{% for u in users %}<tr><td>{{ u.nom }}</td><td>{{ u.email }}</td><td>{{ u.role }}</td></tr>{% endfor %}</table></div></section>
+<section class='panel'><h2>Créer un compte utilisateur</h2><p>Pour un parent, sélectionnez tous ses enfants. Les liens sont réservés à l'administration.</p>
+<form method='post' class='inline-form'><label>Nom complet<input name='nom' required></label><label>E-mail<input name='email' type='email' required></label><label>Mot de passe provisoire<input name='password' type='password' minlength='10' required></label><label>Rôle<select name='role'><option value='eleve'>Élève</option><option value='parent'>Parent</option><option value='enseignant'>Enseignant</option><option value='admin'>Administrateur</option></select></label>
+<label>Enfant(s) du parent — sélection multiple<select name='student_ids' multiple size='5'>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label>
+<label>Dossier lié (compte élève) <select name='student_id'><option value=''>Non lié</option>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><button class='btn primary'>Créer le compte</button></form></section>
+<section class='panel'><h2>Comptes existants</h2><div class='table-wrap'><table><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Enfants liés</th></tr>{% for u in users %}<tr><td>{{ u.nom }}</td><td>{{ u.email }}</td><td>{{ u.role }}</td><td>{% if u.role=='parent' %}{{ u.enfants|map(attribute='nom')|join(', ') }}{% elif u.student_id %}{{ u.student_id }}{% else %}—{% endif %}</td></tr>{% endfor %}</table></div></section>
 """
 
 @app.route("/")
@@ -284,6 +310,15 @@ def dashboard():
             recettes_usd=db.session.query(db.func.coalesce(db.func.sum(Payment.montant),0)).filter_by(statut="Payé",devise="USD").scalar(),
             payes=Payment.query.filter_by(statut="Payé").count(), nb_paiements=Payment.query.count(),
             recents=Student.query.order_by(Student.cree_le.desc()).limit(6).all())
+    if current_user.role == "parent":
+        children = []
+        for child in parent_children(current_user):
+            children.append({
+                "student": child,
+                "absences": Attendance.query.filter_by(student_id=child.id, statut="Absent").count(),
+                "payments": Payment.query.filter_by(student_id=child.id).count()
+            })
+        return page("Espace parent", DASH_PARENT, children=children)
     student = db.session.get(Student, current_user.student_id) if current_user.student_id else None
     absences = Attendance.query.filter_by(student_id=student.id, statut="Absent").count() if student else 0
     return page("Mon espace", DASH_USER, student=student, absences=absences)
@@ -459,6 +494,9 @@ def notes():
         pairs=[db.and_(Student.classe==a.classe,Grade.cours==a.cours,Grade.annee_academique==a.annee_academique) for a in assignments]
         students=Student.query.filter(Student.classe.in_([a.classe for a in assignments])).order_by(Student.nom).all() if assignments else []
         notes_list=query.filter(db.or_(*pairs)).order_by(Grade.id.desc()).all() if pairs else []
+    elif current_user.role == "parent":
+        child_ids=[child.id for child in parent_children(current_user)]
+        notes_list=query.filter(Grade.student_id.in_(child_ids)).order_by(Grade.id.desc()).all() if child_ids else []
     else:
         if not current_user.student_id:
             return page("Notes",GRADES,admin=False,teacher=False,notes=[],students=[],assignments=[])
@@ -479,8 +517,12 @@ def finances():
         db.session.add(p); db.session.commit(); flash("Paiement enregistré.","success"); return redirect(url_for("finances"))
     query=Payment.query.join(Student)
     if not admin:
-        if not current_user.student_id: return page("Finances",FINANCES,admin=False,paiements=[])
-        query=query.filter(Payment.student_id==current_user.student_id)
+        if current_user.role == "parent":
+            child_ids=[child.id for child in parent_children(current_user)]
+            query=query.filter(Payment.student_id.in_(child_ids)) if child_ids else query.filter(db.false())
+        else:
+            if not current_user.student_id: return page("Finances",FINANCES,admin=False,paiements=[])
+            query=query.filter(Payment.student_id==current_user.student_id)
     return page("Finances scolaires",FINANCES,admin=admin,paiements=query.order_by(Payment.id.desc()).all(),
                 students=Student.query.order_by(Student.nom).all() if admin else [])
 
@@ -595,6 +637,9 @@ def assistant():
     if q:
         if current_user.role in ("admin","enseignant"):
             student=Student.query.filter(db.or_(Student.matricule==q,Student.nom.ilike("%"+q+"%"))).first()
+        elif current_user.role == "parent":
+            children=parent_children(current_user)
+            student=next((child for child in children if q==child.matricule or q.lower() in child.nom.lower()),None)
         elif current_user.student_id:
             own=db.session.get(Student,current_user.student_id)
             if own and (q==own.matricule or q.lower() in own.nom.lower()): student=own
@@ -604,15 +649,37 @@ def assistant():
 @admin_only
 def comptes():
     if request.method=="POST":
-        email=request.form["email"].strip().lower()
-        if User.query.filter_by(email=email).first():
+        email=request.form.get("email","").strip().lower()
+        role=request.form.get("role","eleve")
+        allowed_roles=("eleve","parent","enseignant","admin")
+        try:
+            linked_ids=[int(value) for value in request.form.getlist("student_ids") if value]
+            sid_raw=request.form.get("student_id","").strip()
+            sid=int(sid_raw) if sid_raw else None
+        except ValueError:
+            flash("Sélection invalide pour le dossier élève.","error")
+            return redirect(url_for("comptes"))
+        if not request.form.get("nom","").strip() or not email or not request.form.get("password","") or role not in allowed_roles:
+            flash("Complétez les champs obligatoires et choisissez un rôle valide.","error")
+        elif len(request.form["password"]) < 10:
+            flash("Le mot de passe provisoire doit contenir au moins 10 caractères.","error")
+        elif User.query.filter_by(email=email).first():
             flash("Cette adresse e-mail existe déjà.","error")
+        elif any(not db.session.get(Student, student_id) for student_id in linked_ids) or (sid and not db.session.get(Student,sid)):
+            flash("Un des dossiers élèves sélectionnés n'existe pas.","error")
+        elif role != "parent" and linked_ids:
+            flash("La sélection multiple d'enfants est réservée aux comptes parents.","error")
         else:
-            u=User(nom=request.form["nom"].strip(),email=email,role=request.form["role"])
+            u=User(nom=request.form["nom"].strip(),email=email,role=role)
             u.set_password(request.form["password"])
-            sid=request.form.get("student_id")
-            u.student_id=int(sid) if sid else None
-            db.session.add(u); db.session.commit(); flash("Compte créé.","success")
+            u.student_id=sid if role=="eleve" else None
+            if role=="parent":
+                u.enfants=[db.session.get(Student, student_id) for student_id in sorted(set(linked_ids))]
+                if sid:
+                    legacy=db.session.get(Student,sid)
+                    if legacy not in u.enfants: u.enfants.append(legacy)
+            db.session.add(u); db.session.commit()
+            flash("Compte créé et liens familiaux enregistrés.","success")
         return redirect(url_for("comptes"))
     return page("Comptes utilisateurs",ACCOUNTS,users=User.query.order_by(User.nom).all(),
                 students=Student.query.order_by(Student.nom).all())
