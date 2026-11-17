@@ -652,6 +652,21 @@ FINANCES = """
 {% for p in paiements %}<tr><td>{{ p.eleve.nom }}</td><td>{{ p.libelle }}</td><td>{{ "{:,.0f}".format(p.montant).replace(",", " ") }}</td><td>{{ p.devise }}</td><td>{{ p.statut }}</td><td><a class='btn outline' href='/finances/{{ p.id }}/recu.pdf'>PDF</a></td></tr>
 {% else %}<tr><td colspan='6'>Aucun paiement.</td></tr>{% endfor %}</table></div></section>
 {% if admin %}
+<section class='panel'><h2>Rapport de caisse par période</h2>
+<form method='get' class='inline-form'>
+<label>Du<input type='date' name='date_debut' value='{{ date_debut.isoformat() if date_debut else "" }}'></label>
+<label>Au<input type='date' name='date_fin' value='{{ date_fin.isoformat() if date_fin else "" }}'></label>
+<button class='btn primary'>Afficher le rapport</button>
+<a class='btn outline' href='/finances'>Réinitialiser</a>
+</form>
+<div class='stats-grid'>
+<article class='stat'><small>Recettes encaissées CDF</small><strong>{{ "{:,.0f}".format(rapport.CDF.recettes).replace(",", " ") }} CDF</strong></article>
+<article class='stat'><small>Dépenses CDF</small><strong>{{ "{:,.0f}".format(rapport.CDF.depenses).replace(",", " ") }} CDF</strong></article>
+<article class='stat'><small>Solde net CDF</small><strong>{{ "{:,.0f}".format(rapport.CDF.solde).replace(",", " ") }} CDF</strong></article>
+<article class='stat'><small>Recettes encaissées USD</small><strong>{{ "{:,.0f}".format(rapport.USD.recettes).replace(",", " ") }} USD</strong></article>
+<article class='stat'><small>Dépenses USD</small><strong>{{ "{:,.0f}".format(rapport.USD.depenses).replace(",", " ") }} USD</strong></article>
+<article class='stat'><small>Solde net USD</small><strong>{{ "{:,.0f}".format(rapport.USD.solde).replace(",", " ") }} USD</strong></article>
+</div><p class='muted'>Le solde net est calculé séparément en CDF et en USD, sans conversion entre les deux devises.</p></section>
 <section class='panel'><h2>État des dépenses</h2>
 <div class='stats-grid'><article class='stat'><small>Dépenses en CDF</small><strong>{{ "{:,.0f}".format(depenses_totales.CDF).replace(",", " ") }} CDF</strong></article>
 <article class='stat'><small>Dépenses en USD</small><strong>{{ "{:,.0f}".format(depenses_totales.USD).replace(",", " ") }} USD</strong></article></div>
@@ -1359,13 +1374,45 @@ def finances():
         if payment.devise in totaux:
             key = "paye" if payment.statut == "Payé" else "attente"
             totaux[payment.devise][key] += payment.montant
-    expenses = SchoolExpense.query.order_by(SchoolExpense.date_depense.desc(), SchoolExpense.id.desc()).all() if admin else []
+    date_debut = date_fin = None
+    rapport = {currency: {"recettes": 0, "depenses": 0, "solde": 0} for currency in ("CDF", "USD")}
+    expenses = []
+    if admin:
+        try:
+            raw_start = request.args.get("date_debut", "").strip()
+            raw_end = request.args.get("date_fin", "").strip()
+            date_debut = datetime.strptime(raw_start, "%Y-%m-%d").date() if raw_start else None
+            date_fin = datetime.strptime(raw_end, "%Y-%m-%d").date() if raw_end else None
+        except ValueError:
+            abort(400)
+        if date_debut and date_fin and date_debut > date_fin:
+            abort(400, description="La date de début doit précéder la date de fin.")
+        paid_query = Payment.query.filter_by(statut="Payé")
+        if date_debut:
+            paid_query = paid_query.filter(Payment.date_paiement >= date_debut)
+        if date_fin:
+            paid_query = paid_query.filter(Payment.date_paiement <= date_fin)
+        for paid in paid_query.all():
+            if paid.devise in rapport:
+                rapport[paid.devise]["recettes"] += paid.montant
+        expense_query = SchoolExpense.query
+        if date_debut:
+            expense_query = expense_query.filter(SchoolExpense.date_depense >= date_debut)
+        if date_fin:
+            expense_query = expense_query.filter(SchoolExpense.date_depense <= date_fin)
+        expenses = expense_query.order_by(SchoolExpense.date_depense.desc(), SchoolExpense.id.desc()).all()
+        for expense in expenses:
+            if expense.devise in rapport:
+                rapport[expense.devise]["depenses"] += expense.montant
+        for currency in rapport:
+            rapport[currency]["solde"] = rapport[currency]["recettes"] - rapport[currency]["depenses"]
     depenses_totales = {currency: 0 for currency in ("CDF", "USD")}
     for expense in expenses:
         if expense.devise in depenses_totales:
             depenses_totales[expense.devise] += expense.montant
     return page("Finances scolaires", FINANCES, admin=admin, paiements=paiements,
                 totaux=totaux, depenses=expenses, depenses_totales=depenses_totales,
+                rapport=rapport, date_debut=date_debut, date_fin=date_fin,
                 students=Student.query.order_by(Student.nom).all() if admin else [])
 
 
