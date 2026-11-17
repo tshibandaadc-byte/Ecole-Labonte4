@@ -1661,6 +1661,8 @@ def school_fees():
                         )
                         sent += created
             db.session.commit()
+            journaliser("Rappels frais envoyés", "SchoolFee", f"notifications={sent}; date={today}")
+            db.session.commit()
             flash("{} notification(s) de rappel envoyée(s) aux parents. Les doublons sont évités.".format(sent), "success")
             return redirect(url_for("school_fees"))
         if action == "create_fee":
@@ -1700,6 +1702,9 @@ def school_fees():
                             "frais-{}".format(fee.id)
                         )
                 db.session.commit()
+                journaliser("Création frais scolaires", "SchoolFee",
+                    f"id={fee.id}; classe={classe}; année={year}; libellé={label}; montant={amount} {currency}; échéance={due_date or ''}")
+                db.session.commit()
                 flash("Frais de classe créés. Les parents liés ont été informés dans leurs notifications.", "success")
             return redirect(url_for("school_fees"))
         if action == "record_payment":
@@ -1720,6 +1725,9 @@ def school_fees():
             versement = FeePayment(fee_id=fee.id, student_id=student.id, montant=amount,
                                    reference=request.form.get("reference", "").strip()[:80] or None)
             db.session.add(versement)
+            db.session.commit()
+            journaliser("Versement frais scolaires", "FeePayment",
+                f"id={versement.id}; élève={student.nom}; frais={fee.libelle}; montant={amount} {fee.devise}; référence={versement.reference or ''}")
             db.session.commit()
             flash("Versement enregistré. Vous pouvez imprimer le reçu PDF.", "success")
             return redirect(url_for("school_fees"))
