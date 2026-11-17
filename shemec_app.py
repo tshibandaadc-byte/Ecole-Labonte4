@@ -449,7 +449,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École Shemec</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE SHEMEC<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/structure-scolaire'>▦ Structure scolaire</a><a href='/facultes'>▦ Ancien catalogue universitaire</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a><a href='/personnel'>♙ Personnel & paie</a><a href='/annees-scolaires'>▦ Années & trimestres</a><a href='/bibliotheque'>▤ Bibliothèque</a><a href='/transport'>▣ Transport</a><a href='/cantine'>♨ Cantine</a><a href='/comptabilite'>◈ Comptabilité</a><a href='/journal'>▤ Journal d’audit</a>{% endif %}{% if current_user.role in ['enseignant','admin'] %}<a href='/mon-salaire'>◈ Mon salaire</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/structure-scolaire'>▦ Structure scolaire</a><a href='/facultes'>▦ Ancien catalogue universitaire</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/enseignants/rapport'>▤ Rapport pédagogique</a><a href='/comptes'>♧ Comptes utilisateurs</a><a href='/personnel'>♙ Personnel & paie</a><a href='/annees-scolaires'>▦ Années & trimestres</a><a href='/bibliotheque'>▤ Bibliothèque</a><a href='/transport'>▣ Transport</a><a href='/cantine'>♨ Cantine</a><a href='/comptabilite'>◈ Comptabilité</a><a href='/journal'>▤ Journal d’audit</a>{% endif %}{% if current_user.role in ['enseignant','admin'] %}<a href='/mon-salaire'>◈ Mon salaire</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/frais'>▣ Frais par classe</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -516,7 +516,7 @@ DASH_ADMIN = """
 <section class='hero'><div><small>VUE GÉNÉRALE</small><h2>Bonjour, {{ current_user.nom }} 👋</h2><p>Bienvenue dans votre espace de gestion.</p></div><span>✦</span></section>
 <div class='stats'><article><small>Élèves inscrits</small><strong>{{ total }}</strong><em>Effectif total</em></article><article><small>Enseignants</small><strong>{{ enseignants }}</strong><em>Personnel enseignant</em></article><article><small>Taux de réussite</small><strong>{{ reussite }}%</strong><em>Moyenne au seuil de 10/20</em></article><article><small>Recettes encaissées · CDF</small><strong>{{ recettes_cdf }} CDF</strong><em>Paiements confirmés</em></article><article><small>Recettes encaissées · USD</small><strong>{{ recettes_usd }} USD</strong><em>Paiements confirmés</em></article><article><small>Paiements payés</small><strong>{{ payes }}/{{ nb_paiements }}</strong><em>Suivi des frais</em></article></div>
 <section class='panel'><div class='panel-head'><div><h2>Présences du jour · {{ date_jour }}</h2><p>Relevés enregistrés aujourd'hui</p></div><a class='btn outline' href='/presences/rapport'>Voir les rapports</a></div><div class='stats'><article><small>Présents</small><strong>{{ presence_jour['Présent'] }}</strong></article><article><small>Absents</small><strong>{{ presence_jour['Absent'] }}</strong></article><article><small>En retard</small><strong>{{ presence_jour['Retard'] }}</strong></article><article><small>Classes représentées</small><strong>{{ total_classes }}</strong></article></div></section>
-<section class='panel'><h2>Accès rapides · Direction</h2><div class='quick'><a href='/eleves'><b>Élèves</b><small>Inscriptions et dossiers</small></a><a href='/enseignants'><b>Enseignants</b><small>Équipe pédagogique</small></a><a href='/presences'><b>Présences</b><small>Absences et retards</small></a><a href='/notes'><b>Notes</b><small>Évaluations scolaires</small></a><a href='/finances'><b>Finances</b><small>Recettes et dépenses</small></a><a href='/frais'><b>Frais scolaires</b><small>Soldes par élève</small></a></div></section>
+<section class='panel'><h2>Accès rapides · Direction</h2><div class='quick'><a href='/eleves'><b>Élèves</b><small>Inscriptions et dossiers</small></a><a href='/enseignants/rapport'><b>Enseignants</b><small>Suivi pédagogique et affectations</small></a><a href='/presences'><b>Présences</b><small>Absences et retards</small></a><a href='/notes'><b>Notes</b><small>Évaluations scolaires</small></a><a href='/finances'><b>Finances</b><small>Recettes et dépenses</small></a><a href='/frais'><b>Frais scolaires</b><small>Soldes par élève</small></a></div></section>
 <section class='panel'><div class='panel-head'><div><h2>Dernières inscriptions</h2><p>Les dossiers récemment ajoutés</p></div><a class='btn outline' href='/eleves'>Tous les élèves</a></div>
 <div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Classe</th><th>Promotion</th><th></th></tr>{% for s in recents %}<tr><td><img class='mini' src='/static/uploads/{{ s.photo }}'> {{ s.nom }}</td><td>{{ s.matricule }}</td><td>{{ s.classe }}</td><td>{{ s.promotion }}</td><td><a href='/eleves/{{ s.id }}'>Détails →</a></td></tr>{% else %}<tr><td colspan='5'>Aucune inscription pour le moment.</td></tr>{% endfor %}</table></div></section>
 """
@@ -2358,6 +2358,85 @@ def affectations():
     return page("Affectations enseignants", template,
         teachers=User.query.filter_by(role="enseignant").order_by(User.nom).all(),
         assignments=TeacherAssignment.query.order_by(TeacherAssignment.annee_academique.desc(), TeacherAssignment.classe).all())
+
+
+@app.route("/enseignants/rapport")
+@admin_only
+def rapport_enseignants():
+    annee = request.args.get("annee", "").strip()
+    active_year = AcademicYear.query.filter_by(active=True).first()
+    if not annee:
+        annee = active_year.label if active_year else "2026-2027"
+    if not re.fullmatch(r"\\d{4}-\\d{4}", annee):
+        abort(400)
+
+    teachers = User.query.filter_by(role="enseignant").order_by(User.nom).all()
+    assignments = TeacherAssignment.query.filter_by(annee_academique=annee).order_by(
+        TeacherAssignment.classe, TeacherAssignment.cours).all()
+    grouped = {}
+    for teacher in teachers:
+        grouped[teacher.id] = {
+            "teacher": teacher, "assignments": [], "classes": set(),
+            "hours": 0, "grades": 0, "average_sum": 0.0, "average_count": 0
+        }
+
+    for assignment in assignments:
+        item = grouped.get(assignment.teacher_id)
+        if item is None:
+            continue
+        grades = Grade.query.join(Student).filter(
+            Grade.cours == assignment.cours,
+            Grade.annee_academique == assignment.annee_academique,
+            Student.classe == assignment.classe
+        ).all()
+        average = round(sum(g.note for g in grades) / len(grades), 2) if grades else None
+        item["assignments"].append({
+            "cours": assignment.cours, "classe": assignment.classe,
+            "volume": assignment.volume_horaire, "grades": len(grades),
+            "average": average
+        })
+        item["classes"].add(assignment.classe)
+        item["hours"] += assignment.volume_horaire
+        item["grades"] += len(grades)
+        if average is not None:
+            item["average_sum"] += average
+            item["average_count"] += 1
+
+    report = []
+    for item in grouped.values():
+        item["classes_count"] = len(item["classes"])
+        item["average"] = round(item["average_sum"] / item["average_count"], 2) if item["average_count"] else None
+        item["classes"] = ", ".join(sorted(item["classes"])) or "Aucune"
+        report.append(item)
+
+    return page("Rapport pédagogique des enseignants", """
+    <section class='panel'><h2>Année académique</h2>
+      <form method='get' class='inline-form'>
+        <label>Année scolaire<input name='annee' value='{{ annee }}' pattern='[0-9]{4}-[0-9]{4}' required></label>
+        <button class='btn primary'>Afficher</button>
+      </form>
+    </section>
+    <section class='stats'>
+      <article><small>Enseignants</small><strong>{{ report|length }}</strong></article>
+      <article><small>Affectations</small><strong>{{ total_affectations }}</strong></article>
+      <article><small>Volume horaire affecté</small><strong>{{ total_heures }} h</strong></article>
+      <article><small>Notes enregistrées</small><strong>{{ total_notes }}</strong></article>
+    </section>
+    <section class='panel'><h2>Suivi par enseignant</h2>
+      <div class='table-wrap'><table><tr><th>Enseignant</th><th>Classes</th><th>Affectations</th><th>Volume (h)</th><th>Notes liées</th><th>Moyenne des cours</th></tr>
+      {% for item in report %}<tr><td>{{ item.teacher.nom }}<small class='sub'>{{ item.teacher.email }}</small></td><td>{{ item.classes }}</td><td>{{ item.assignments|length }}</td><td>{{ item.hours }}</td><td>{{ item.grades }}</td><td>{{ item.average if item.average is not none else '—' }}{% if item.average is not none %}/20{% endif %}</td></tr>
+      {% else %}<tr><td colspan='6'>Aucun enseignant enregistré.</td></tr>{% endfor %}</table></div>
+      <p class='muted'>Les notes sont rapprochées par cours, classe et année scolaire. Si plusieurs enseignants partagent le même cours et la même classe, les mêmes notes peuvent apparaître dans leurs indicateurs. Ces données mesurent l'activité enregistrée, pas une évaluation individuelle de la qualité pédagogique.</p>
+    </section>
+    {% for item in report if item.assignments %}
+    <section class='panel'><h3>{{ item.teacher.nom }} · Détail des affectations</h3>
+      <div class='table-wrap'><table><tr><th>Cours</th><th>Classe</th><th>Volume (h)</th><th>Notes</th><th>Moyenne</th></tr>
+      {% for a in item.assignments %}<tr><td>{{ a.cours }}</td><td>{{ a.classe }}</td><td>{{ a.volume }}</td><td>{{ a.grades }}</td><td>{{ a.average if a.average is not none else '—' }}{% if a.average is not none %}/20{% endif %}</td></tr>{% endfor %}</table></div>
+    </section>{% endfor %}
+    <section class='panel'><a class='btn outline' href='/affectations'>Gérer les affectations</a></section>
+    """, annee=annee, report=report, total_affectations=len(assignments),
+    total_heures=sum(a.volume_horaire for a in assignments),
+    total_notes=sum(item["grades"] for item in report))
 
 
 @app.route("/facultes", methods=["GET", "POST"])
