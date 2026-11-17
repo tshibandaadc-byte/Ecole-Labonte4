@@ -55,3 +55,35 @@ def classement_classe(resultats, eleve_id):
         "effectif": len(moyennes),
         "moyenne_classe": round(sum(triees) / len(triees), 2) if triees else None,
     }
+
+
+def resultats_annuels(notes):
+    """Agrège les notes par matière pour une année académique.
+
+    Chaque matière a une moyenne arithmétique des notes enregistrées.
+    Les examens trimestriels et finaux restent identifiables séparément.
+    Aucune pondération officielle n'est supposée.
+    """
+    matieres = defaultdict(list)
+    trimestriels = defaultdict(list)
+    examens_finaux = defaultdict(list)
+    for item in notes:
+        matiere = item.cours
+        valeur = float(item.note)
+        matieres[matiere].append(valeur)
+        periode = (item.periode or "").strip().lower()
+        if periode in ("examen final", "examen de fin d'année", "examen annuel"):
+            examens_finaux[matiere].append(valeur)
+        elif periode.startswith("trimestre"):
+            trimestriels[matiere].append(valeur)
+    lignes = []
+    for matiere in sorted(matieres, key=str.casefold):
+        lignes.append({
+            "matiere": matiere,
+            "nombre": len(matieres[matiere]),
+            "moyenne": moyenne_notes(matieres[matiere]),
+            "moyenne_trimestrielle": moyenne_notes(trimestriels[matiere]),
+            "moyenne_examen_final": moyenne_notes(examens_finaux[matiere]),
+        })
+    moyenne_generale = moyenne_notes(ligne["moyenne"] for ligne in lignes)
+    return {"matieres": lignes, "moyenne_generale": moyenne_generale}
