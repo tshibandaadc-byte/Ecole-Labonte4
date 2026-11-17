@@ -28,7 +28,7 @@ register_class_routes(
 register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page, AcademicYear)
 register_teacher_followup(app, db, User, page)
 register_teacher_profile(app, db, User, Personnel, StaffContract, PayrollRecord, TeacherAssignment, page)
-register_parent_portal(app, db, Student, Grade, Attendance, SchoolFee, FeePayment, parent_children, page)
+register_parent_portal(app, db, Student, Grade, Attendance, SchoolFee, FeePayment, AcademicYear, parent_children, page)
 
 core.BASE = core.BASE.replace(
     "<a href='/horaire'>▦ Emploi du temps</a>",
