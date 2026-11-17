@@ -1,14 +1,14 @@
-# ÉCOLE SHEMEC — application Flask PWA
+# ÉCOLE LA BONTÉ — application Flask PWA
 
 Cette version Flask/PWA est intégrée au dépôt `Ecole-Labonte4` dans le compte GitHub `tshibandaadc-byte`. Les anciens prototypes et backends restent conservés.
 
 ## Fonctionnalités
 - Connexion par rôle : administration, enseignant, parent, élève.
 - Tableau de bord administratif : effectifs, enseignants, recettes et paiements.
-- Gestion des élèves : photo obligatoire à l'inscription, matricule automatique AAAA-001, recherche, fiche, modification et suppression.
+- Gestion des élèves : photo obligatoire à l'inscription, matricule automatique 2026-01-02-000001 (14 chiffres, attribué par la Direction), recherche, fiche, modification et suppression.
 - Notes sur 20, suivi des paiements en francs congolais, messagerie interne, emploi du temps et registre des présences/absences.
 - Taux de réussite calculé à partir des moyennes enregistrées avec un seuil provisoire de 10/20 (modifiable par la variable `PASS_MARK`).
-- Création des comptes utilisateurs par l'administrateur et association facultative au dossier d'un élève.
+- Création autonome du compte élève après vérification du matricule attribué par la Direction ; l'élève choisit et confirme son propre mot de passe.
 - Interface responsive et installation PWA.
 
 ## Lancer sous Windows / VS Code
@@ -23,7 +23,7 @@ py -m pip install -r requirements.txt
 py app.py
 ```
 
-Ouvrir http://127.0.0.1:5000. Connexion locale initiale : `admin@shemec.cd` / `Shemec2026!`. Changer ce mot de passe immédiatement.
+Ouvrir http://127.0.0.1:5000. Connexion locale initiale : `admin@shemec.cd` / `La Bonté2026!`. Changer ce mot de passe immédiatement.
 
 Si PowerShell bloque l'activation : `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, puis réactiver l'environnement.
 
