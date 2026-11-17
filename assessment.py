@@ -87,3 +87,20 @@ def resultats_annuels(notes):
         })
     moyenne_generale = moyenne_notes(ligne["moyenne"] for ligne in lignes)
     return {"matieres": lignes, "moyenne_generale": moyenne_generale}
+
+
+def classement_annuel(resultats, eleve_id):
+    """Classe les élèves sur leur moyenne annuelle par matière, sans pondération."""
+    par_eleve = defaultdict(lambda: defaultdict(list))
+    for student_id, matiere, note in resultats:
+        par_eleve[student_id][matiere].append(note)
+    moyennes = {
+        student_id: moyenne_notes(moyenne_notes(notes) for notes in matieres.values())
+        for student_id, matieres in par_eleve.items()
+    }
+    if eleve_id not in moyennes:
+        return {"rang": None, "effectif": len(moyennes), "moyenne_classe": None}
+    triees = sorted(moyennes.values(), reverse=True)
+    moyenne = moyennes[eleve_id]
+    return {"rang": triees.index(moyenne) + 1, "effectif": len(moyennes),
+            "moyenne_classe": moyenne_notes(triees)}
