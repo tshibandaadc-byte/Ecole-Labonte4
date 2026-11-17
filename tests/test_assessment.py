@@ -18,7 +18,7 @@ class AssessmentTests(unittest.TestCase):
         self.assertEqual(decision_passage(None), "En attente de notes")
 
     def test_class_ranking_and_ties(self):
-        results = [(1, 15), (1, 17), (2, 16), (3, 10), (4, 16)]
+        results = [(1, 18), (1, 16), (2, 16), (3, 10), (4, 16)]
         self.assertEqual(classement_classe(results, 1)["rang"], 1)
         self.assertEqual(classement_classe(results, 2)["rang"], 2)
         self.assertEqual(classement_classe(results, 4)["rang"], 2)
