@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, date
+import re
 from functools import wraps
 from pathlib import Path
 
@@ -47,6 +48,9 @@ class Student(db.Model):
     filiere = db.Column(db.String(120), nullable=False)
     promotion = db.Column(db.String(80), nullable=False)
     classe = db.Column(db.String(80), nullable=False)
+    annee_inscription = db.Column(db.Integer, nullable=True)
+    code_faculte = db.Column(db.String(2), nullable=True)
+    code_filiere = db.Column(db.String(2), nullable=True)
     nombre_cours = db.Column(db.Integer, default=0)
     credits = db.Column(db.Integer, default=0)
     cree_le = db.Column(db.DateTime, default=datetime.utcnow)
@@ -63,6 +67,8 @@ class Grade(db.Model):
     cours = db.Column(db.String(140), nullable=False)
     note = db.Column(db.Float, nullable=False)
     periode = db.Column(db.String(80), default="Trimestre 1")
+    annee_academique = db.Column(db.String(20), default="2026-2027")
+    promotion = db.Column(db.String(80), default="")
 
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -108,14 +114,10 @@ def admin_only(fn):
         return fn(*a, **kw)
     return wrapped
 
-def matricule_suivant():
-    annee = datetime.now().year
-    dernier = Student.query.filter(Student.matricule.like(f"{annee}-%")).order_by(Student.id.desc()).first()
-    numero = 1
-    if dernier:
-        try: numero = int(dernier.matricule.rsplit("-", 1)[1]) + 1
-        except ValueError: numero = Student.query.count() + 1
-    return f"{annee}-{numero:03d}"
+import re
+MATRICULE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{6}$")
+def matricule_valide(value):
+    return bool(MATRICULE_RE.fullmatch((value or "").strip()))
 
 BASE = """
 <!doctype html><html lang='fr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
@@ -138,9 +140,9 @@ def page(title, template, **context):
 
 LOGIN = """
 <div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><small class='kicker'>BIENVENUE À</small><h1>École Shemec</h1><p>Votre espace scolaire numérique.</p>
-<label>Adresse e-mail<input type='email' name='email' required autocomplete='username'></label>
+<label>Matricule ou adresse e-mail<input name='identifier' required autocomplete='username'></label>
 <label>Mot de passe<input type='password' name='password' required autocomplete='current-password'></label>
-<button class='btn primary wide'>Se connecter</button><small class='muted'>Élèves · Parents · Enseignants · Administration</small></form></div>
+<button class='btn primary wide'>Se connecter</button><a href='/creer-compte-eleve'>Créer un compte Élève – École La Bonté, Chemègue, Lubumbashi</a><small class='muted'>Élèves · Parents · Enseignants · Administration</small></form></div>
 """
 DASH_ADMIN = """
 <section class='hero'><div><small>VUE GÉNÉRALE</small><h2>Bonjour, {{ current_user.nom }} 👋</h2><p>Bienvenue dans votre espace de gestion.</p></div><span>✦</span></section>
@@ -168,7 +170,10 @@ STUDENT_FORM = """
 <form method='post' enctype='multipart/form-data' class='form-grid'>
 <label class='photo'>Photo de profil {% if not s %}*{% endif %}<input type='file' name='photo' accept='.jpg,.jpeg,.png,.webp' {% if not s %}required{% endif %}><img id='preview' src='{{ ("/static/uploads/"+s.photo) if s else "" }}' {% if not s %}hidden{% endif %}></label>
 <label>Nom complet *<input name='nom' required value='{{ s.nom if s else "" }}'></label>
-<label>Matricule automatique<input value='{{ s.matricule if s else matricule }}' readonly></label>
+<label>Matricule attribué par la Direction *<input name='matricule' required pattern='[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}' placeholder='2026-01-02-000001' value='{{ s.matricule if s else "" }}'></label>
+<label>Année d'inscription *<input type='number' name='annee_inscription' required value='{{ s.annee_inscription if s else "" }}'></label>
+<label>Code faculté *<input name='code_faculte' pattern='[0-9]{2}' maxlength='2' required value='{{ s.code_faculte if s else "" }}'></label>
+<label>Code filière *<input name='code_filiere' pattern='[0-9]{2}' maxlength='2' required value='{{ s.code_filiere if s else "" }}'></label>
 <label>Faculté *<input name='faculte' required value='{{ s.faculte if s else "" }}'></label>
 <label>Filière *<input name='filiere' required value='{{ s.filiere if s else "" }}'></label>
 <label>Promotion *<input name='promotion' required placeholder='Promotion 2026 / G1 / L1' value='{{ s.promotion if s else "" }}'></label>
@@ -227,11 +232,35 @@ def dashboard():
 def connexion():
     if current_user.is_authenticated: return redirect(url_for("dashboard"))
     if request.method == "POST":
-        user = User.query.filter_by(email=request.form.get("email","").strip().lower()).first()
+        identifier=request.form.get("identifier","").strip()
+        user = User.query.filter_by(email=identifier.lower()).first()
+        if not user and matricule_valide(identifier):
+            student=Student.query.filter_by(matricule=identifier).first()
+            user=User.query.filter_by(student_id=student.id).first() if student else None
         if user and user.verify(request.form.get("password","")):
             login_user(user); return redirect(url_for("dashboard"))
         flash("Adresse e-mail ou mot de passe incorrect.", "error")
     return page("Connexion", LOGIN)
+
+
+@app.route("/creer-compte-eleve", methods=["GET","POST"])
+def creer_compte_eleve():
+    template="""<div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><h1>Créer mon compte élève</h1><p>Utilisez le matricule remis par la Direction et choisissez votre mot de passe.</p><label>Matricule officiel<input name='matricule' required pattern='[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}' placeholder='2026-01-02-000001'></label><label>Mot de passe personnel<input type='password' name='password' minlength='10' required></label><label>Confirmer le mot de passe<input type='password' name='confirm' minlength='10' required></label><button class='btn primary wide'>Créer mon compte</button><a href='/connexion'>Retour</a></form></div>"""
+    if request.method=="POST":
+        matricule=request.form.get("matricule","").strip()
+        student=Student.query.filter_by(matricule=matricule).first()
+        if not matricule_valide(matricule) or not student:
+            flash("Matricule non reconnu. Vérifiez auprès de la Direction.", "error")
+        elif User.query.filter_by(student_id=student.id).first():
+            flash("Un compte existe déjà pour ce matricule.", "error")
+        elif len(request.form.get("password",""))<10 or request.form.get("password")!=request.form.get("confirm"):
+            flash("Les mots de passe doivent être identiques et contenir au moins 10 caractères.", "error")
+        else:
+            u=User(nom=student.nom,email=matricule.replace("-","")+"@eleves.shemec.local",role="eleve",student_id=student.id)
+            u.set_password(request.form["password"]); db.session.add(u); db.session.commit()
+            flash("Compte créé. Connectez-vous avec votre matricule et votre mot de passe.", "success")
+            return redirect(url_for("connexion"))
+    return page("Créer un compte élève",template)
 
 @app.route("/deconnexion")
 @login_required
@@ -260,7 +289,13 @@ def eleve_nouveau():
             return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule=matricule_suivant())
         filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
         photo.save(UPLOADS / filename)
-        s = Student(matricule=matricule_suivant(), nom=request.form["nom"].strip(), photo=filename,
+        matricule=request.form.get("matricule","").strip()
+        annee=int(request.form["annee_inscription"]); cf=request.form["code_faculte"].strip(); cfi=request.form["code_filiere"].strip()
+        if not matricule_valide(matricule) or Student.query.filter_by(matricule=matricule).first() or matricule.split("-")[:3] != [str(annee),cf,cfi]:
+            (UPLOADS / filename).unlink(missing_ok=True)
+            flash("Matricule invalide, déjà utilisé ou incohérent avec l'année, la faculté et la filière.", "error")
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="")
+        s = Student(matricule=matricule, annee_inscription=annee, code_faculte=cf, code_filiere=cfi, nom=request.form["nom"].strip(), photo=filename,
             faculte=request.form["faculte"].strip(), filiere=request.form["filiere"].strip(),
             promotion=request.form["promotion"].strip(), classe=request.form["classe"].strip(),
             nombre_cours=int(request.form.get("nombre_cours") or 0), credits=int(request.form.get("credits") or 0))
@@ -406,6 +441,17 @@ def not_found(_): return page("Introuvable","<section class='panel'><h2>Cette pa
 
 with app.app_context():
     db.create_all()
+    from sqlalchemy import inspect
+    insp=inspect(db.engine)
+    for table, columns in {
+        "student": {"annee_inscription":"INTEGER","code_faculte":"VARCHAR(2)","code_filiere":"VARCHAR(2)"},
+        "grade": {"annee_academique":"VARCHAR(20) DEFAULT '2026-2027'","promotion":"VARCHAR(80) DEFAULT ''"}
+    }.items():
+        existing={col["name"] for col in insp.get_columns(table)}
+        for col, definition in columns.items():
+            if col not in existing:
+                with db.engine.begin() as conn:
+                    conn.exec_driver_sql("ALTER TABLE " + table + " ADD COLUMN " + col + " " + definition)
     if not User.query.filter_by(email="admin@shemec.cd").first():
         admin=User(nom="Administrateur Shemec",email="admin@shemec.cd",role="admin")
         admin.set_password(os.getenv("ADMIN_PASSWORD","Shemec2026!"))
