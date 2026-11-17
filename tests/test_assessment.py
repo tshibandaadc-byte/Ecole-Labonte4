@@ -37,12 +37,14 @@ class AssessmentTests(unittest.TestCase):
         result = resultats_annuels([
             Note("Mathématiques", 12, "Trimestre 1"),
             Note("Mathématiques", 14, "Trimestre 2"),
+            Note("Mathématiques", 15, "Examen trimestriel"),
             Note("Mathématiques", 16, "Examen final"),
             Note("Français", 10, "Trimestre 1"),
         ])
         maths = result["matieres"][1]
         self.assertEqual(maths["matiere"], "Mathématiques")
         self.assertEqual(maths["moyenne"], 14.0)
+        self.assertEqual(maths["moyenne_examens_trimestriels"], 15.0)
         self.assertEqual(maths["moyenne_examen_final"], 16.0)
         self.assertEqual(result["moyenne_generale"], 12.0)
 
