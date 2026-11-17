@@ -59,7 +59,7 @@ def register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page
             if not teacher_user or teacher_user.role != "enseignant":
                 abort(400, description="Le compte enseignant de cette affectation n'est plus valide.")
 
-            existing_slots = CourseSlot.query.filter_by(jour=day).all()
+            existing_slots = CourseSlot.query.filter_by(jour=day, annee_academique=assignment.annee_academique).all()
             for existing in existing_slots:
                 old_start, old_end = parse_time(existing.debut), parse_time(existing.fin)
                 if not old_start or not old_end:
@@ -86,7 +86,7 @@ def register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page
         query = CourseSlot.query
         assignments_query = TeacherAssignment.query
         if teacher:
-            allowed = TeacherAssignment.query.filter_by(teacher_id=current_user.id).all()
+            allowed = TeacherAssignment.query.filter_by(teacher_id=current_user.id, annee_academique=selected_year).all()
             allowed_classes = sorted({row.classe for row in allowed})
             query = query.filter(CourseSlot.classe.in_(allowed_classes)) if allowed_classes else query.filter(db.false())
             assignments_query = assignments_query.filter_by(teacher_id=current_user.id)
@@ -96,7 +96,7 @@ def register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page
         ).all()
         template = """
         <section class='hero'><div><small>ÉCOLE SHEMEC · LUBUMBASHI</small>
-          <h2>Emploi du temps des cours</h2>
+          <h2>Emploi du temps des cours · {{ annee }}</h2>
           <p>Planification des séances et contrôle des conflits de classe et d'enseignant.</p></div><span>🇨🇩</span></section>
         {% if admin %}
         <section class='panel'><h2>Ajouter une séance</h2>
