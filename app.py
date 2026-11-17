@@ -70,6 +70,20 @@ class Grade(db.Model):
     annee_academique = db.Column(db.String(20), default="2026-2027")
     promotion = db.Column(db.String(80), default="")
 
+class FacultyCatalog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(2), unique=True, nullable=False)
+    nom = db.Column(db.String(140), unique=True, nullable=False)
+    filieres = db.relationship("ProgramCatalog", cascade="all,delete-orphan", backref="faculte")
+
+class ProgramCatalog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(2), nullable=False)
+    nom = db.Column(db.String(140), nullable=False)
+    faculty_id = db.Column(db.Integer, db.ForeignKey("faculty_catalog.id"), nullable=False)
+    __table_args__ = (db.UniqueConstraint("faculty_id", "code", name="uq_program_faculty_code"),
+                      db.UniqueConstraint("faculty_id", "nom", name="uq_program_faculty_name"))
+
 class StudentHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
@@ -138,7 +152,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École La Bonté</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/historique'>▤ Historique académique</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -464,6 +478,66 @@ def comptes():
     return page("Comptes utilisateurs",ACCOUNTS,users=User.query.order_by(User.nom).all(),
                 students=Student.query.order_by(Student.nom).all())
 
+
+
+@app.route("/facultes", methods=["GET", "POST"])
+@admin_only
+def facultes():
+    if request.method == "POST":
+        action = request.form.get("action")
+        code = request.form.get("code", "").strip()
+        nom = request.form.get("nom", "").strip()
+        if not re.fullmatch(r"\\d{2}", code) or not nom:
+            flash("Le code doit contenir exactement deux chiffres et le nom est obligatoire.", "error")
+        elif action == "faculty":
+            if FacultyCatalog.query.filter(db.or_(FacultyCatalog.code == code, FacultyCatalog.nom.ilike(nom))).first():
+                flash("Cette faculté ou ce code existe déjà.", "error")
+            else:
+                db.session.add(FacultyCatalog(code=code, nom=nom))
+                db.session.commit()
+                flash("Faculté ajoutée au catalogue.", "success")
+        elif action == "program":
+            try:
+                faculty_id = int(request.form.get("faculty_id", ""))
+            except ValueError:
+                faculty_id = 0
+            faculty = db.session.get(FacultyCatalog, faculty_id)
+            if not faculty:
+                flash("Sélectionnez une faculté valide.", "error")
+            elif ProgramCatalog.query.filter_by(faculty_id=faculty.id).filter(db.or_(
+                    ProgramCatalog.code == code, ProgramCatalog.nom.ilike(nom))).first():
+                flash("Cette filière ou ce code existe déjà dans cette faculté.", "error")
+            else:
+                db.session.add(ProgramCatalog(code=code, nom=nom, faculty_id=faculty.id))
+                db.session.commit()
+                flash("Filière ajoutée au catalogue.", "success")
+        else:
+            flash("Type d'enregistrement inconnu.", "error")
+        return redirect(url_for("facultes"))
+    template = """
+    <section class='panel'><h2>Ajouter une faculté</h2>
+    <form method='post' class='inline-form'><input type='hidden' name='action' value='faculty'>
+      <label>Code (2 chiffres)<input name='code' pattern='[0-9]{2}' maxlength='2' required placeholder='01'></label>
+      <label>Nom de la faculté<input name='nom' required placeholder='Sciences informatiques'></label>
+      <button class='btn primary'>Ajouter la faculté</button>
+    </form></section>
+    <section class='panel'><h2>Ajouter une filière</h2>
+    <form method='post' class='inline-form'><input type='hidden' name='action' value='program'>
+      <label>Faculté<select name='faculty_id' required>{% for f in faculties %}<option value='{{ f.id }}'>{{ f.code }} · {{ f.nom }}</option>{% endfor %}</select></label>
+      <label>Code filière (2 chiffres)<input name='code' pattern='[0-9]{2}' maxlength='2' required placeholder='01'></label>
+      <label>Nom de la filière<input name='nom' required placeholder='Réseaux informatiques'></label>
+      <button class='btn primary' {% if not faculties %}disabled{% endif %}>Ajouter la filière</button>
+    </form>{% if not faculties %}<p>Créez d'abord une faculté pour pouvoir y rattacher une filière.</p>{% endif %}</section>
+    <section class='panel'><h2>Catalogue des facultés et filières</h2>
+    {% for f in faculties %}<div class='panel-head'><div><h3>{{ f.code }} · {{ f.nom }}</h3><p>{{ f.filieres|length }} filière(s)</p></div></div>
+      <div class='table-wrap'><table><tr><th>Code</th><th>Filière</th></tr>
+      {% for p in f.filieres|sort(attribute='code') %}<tr><td>{{ p.code }}</td><td>{{ p.nom }}</td></tr>
+      {% else %}<tr><td colspan='2'>Aucune filière enregistrée.</td></tr>{% endfor %}</table></div>
+    {% else %}<p>Aucune faculté enregistrée.</p>{% endfor %}
+    </section>
+    """
+    return page("Facultés & filières", template,
+        faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
 
 @app.route("/historique", methods=["GET","POST"])
 @admin_only
