@@ -198,6 +198,60 @@ class CourseSlot(db.Model):
     cours = db.Column(db.String(140), nullable=False)
     enseignant = db.Column(db.String(140), default="")
 
+class Personnel(db.Model):
+    __tablename__ = "personnel"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True, nullable=True)
+    nom = db.Column(db.String(160), nullable=False)
+    fonction = db.Column(db.String(120), nullable=False)
+    telephone = db.Column(db.String(40), nullable=True)
+    email = db.Column(db.String(180), nullable=True)
+    statut = db.Column(db.String(20), nullable=False, default="Actif")
+    cree_le = db.Column(db.DateTime, default=datetime.utcnow)
+    compte = db.relationship("User", backref=db.backref("fiche_personnel", uselist=False))
+    contrats = db.relationship("StaffContract", cascade="all,delete-orphan", backref="personnel")
+    avances = db.relationship("StaffAdvance", cascade="all,delete-orphan", backref="personnel")
+    paies = db.relationship("PayrollRecord", cascade="all,delete-orphan", backref="personnel")
+
+
+class StaffContract(db.Model):
+    __tablename__ = "staff_contract"
+    id = db.Column(db.Integer, primary_key=True)
+    personnel_id = db.Column(db.Integer, db.ForeignKey("personnel.id"), nullable=False, index=True)
+    type_contrat = db.Column(db.String(60), nullable=False)
+    date_debut = db.Column(db.Date, nullable=False)
+    date_fin = db.Column(db.Date, nullable=True)
+    salaire_base = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+    statut = db.Column(db.String(20), nullable=False, default="Actif")
+
+
+class StaffAdvance(db.Model):
+    __tablename__ = "staff_advance"
+    id = db.Column(db.Integer, primary_key=True)
+    personnel_id = db.Column(db.Integer, db.ForeignKey("personnel.id"), nullable=False, index=True)
+    montant = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+    date_avance = db.Column(db.Date, nullable=False, default=date.today)
+    motif = db.Column(db.String(180), nullable=False)
+    statut = db.Column(db.String(20), nullable=False, default="À retenir")
+
+
+class PayrollRecord(db.Model):
+    __tablename__ = "payroll_record"
+    id = db.Column(db.Integer, primary_key=True)
+    personnel_id = db.Column(db.Integer, db.ForeignKey("personnel.id"), nullable=False, index=True)
+    periode = db.Column(db.String(20), nullable=False)
+    salaire_base = db.Column(db.Integer, nullable=False)
+    avances = db.Column(db.Integer, nullable=False, default=0)
+    deductions = db.Column(db.Integer, nullable=False, default=0)
+    net_a_payer = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+    date_paiement = db.Column(db.Date, nullable=False, default=date.today)
+    reference = db.Column(db.String(80), nullable=True)
+    __table_args__ = (db.UniqueConstraint("personnel_id", "periode", "devise", name="uq_payroll_person_period_currency"),)
+
+
 class TeacherAssignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
@@ -249,7 +303,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École La Bonté</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a><a href='/personnel'>♙ Personnel & paie</a>{% endif %}{% if current_user.role in ['enseignant','admin'] %}<a href='/mon-salaire'>◈ Mon salaire</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/frais'>▣ Frais par classe</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -1646,6 +1700,204 @@ def historique():
     return page("Historique académique", template,
         students=Student.query.order_by(Student.nom).all(),
         records=StudentHistory.query.join(Student).order_by(StudentHistory.annee_academique.desc(), Student.nom).all())
+
+
+@app.route("/personnel", methods=["GET", "POST"])
+@admin_only
+def personnel():
+    if request.method == "POST":
+        action = request.form.get("action", "personnel")
+        if action == "personnel":
+            nom = request.form.get("nom", "").strip()
+            fonction = request.form.get("fonction", "").strip()
+            email = request.form.get("email", "").strip().lower() or None
+            telephone = request.form.get("telephone", "").strip() or None
+            statut = request.form.get("statut", "Actif")
+            user_raw = request.form.get("user_id", "").strip()
+            user = db.session.get(User, int(user_raw)) if user_raw.isdigit() else None
+            if not nom or not fonction or statut not in ("Actif", "Suspendu", "Sorti"):
+                flash("Nom, fonction ou statut invalide.", "error")
+            elif user_raw and (not user or user.role not in ("enseignant", "admin") or Personnel.query.filter_by(user_id=user.id).first()):
+                flash("Ce compte n'est pas valide ou est déjà lié à une fiche.", "error")
+            else:
+                db.session.add(Personnel(nom=nom, fonction=fonction, email=email,
+                    telephone=telephone, statut=statut, user_id=user.id if user else None))
+                db.session.commit()
+                flash("Fiche du membre du personnel créée.", "success")
+        elif action == "contract":
+            try:
+                personnel_id = int(request.form.get("personnel_id", ""))
+                salaire = int(request.form.get("salaire_base", ""))
+                debut = date.fromisoformat(request.form.get("date_debut", ""))
+                fin_raw = request.form.get("date_fin", "").strip()
+                fin = date.fromisoformat(fin_raw) if fin_raw else None
+            except (ValueError, TypeError):
+                flash("Vérifiez les dates et le salaire du contrat.", "error")
+                return redirect(url_for("personnel"))
+            p = db.session.get(Personnel, personnel_id)
+            devise = request.form.get("devise", "CDF").upper()
+            type_contrat = request.form.get("type_contrat", "").strip()
+            if not p or not type_contrat or salaire <= 0 or devise not in ("CDF", "USD") or (fin and fin < debut):
+                flash("Contrat invalide : salaire positif, devise et dates cohérentes obligatoires.", "error")
+            else:
+                StaffContract.query.filter_by(personnel_id=p.id, devise=devise, statut="Actif").update({"statut":"Terminé"})
+                db.session.add(StaffContract(personnel_id=p.id, type_contrat=type_contrat,
+                    date_debut=debut, date_fin=fin, salaire_base=salaire, devise=devise))
+                db.session.commit()
+                flash("Contrat enregistré.", "success")
+        elif action == "advance":
+            try:
+                personnel_id = int(request.form.get("personnel_id", ""))
+                montant = int(request.form.get("montant", ""))
+                date_avance = date.fromisoformat(request.form.get("date_avance", ""))
+            except (ValueError, TypeError):
+                flash("Montant ou date d'avance invalide.", "error")
+                return redirect(url_for("personnel"))
+            p = db.session.get(Personnel, personnel_id)
+            devise = request.form.get("devise", "CDF").upper()
+            motif = request.form.get("motif", "").strip()
+            if not p or montant <= 0 or devise not in ("CDF", "USD") or not motif:
+                flash("L'avance doit avoir un montant positif, une devise et un motif.", "error")
+            else:
+                db.session.add(StaffAdvance(personnel_id=p.id, montant=montant, devise=devise,
+                    date_avance=date_avance, motif=motif))
+                db.session.commit()
+                flash("Avance enregistrée. Elle sera déduite lors de la paie.", "success")
+        elif action == "payroll":
+            try:
+                personnel_id = int(request.form.get("personnel_id", ""))
+                salaire = int(request.form.get("salaire_base", ""))
+                deductions = int(request.form.get("deductions") or 0)
+                date_paiement = date.fromisoformat(request.form.get("date_paiement", ""))
+            except (ValueError, TypeError):
+                flash("Vérifiez le salaire, les retenues et la date de paiement.", "error")
+                return redirect(url_for("personnel"))
+            p = db.session.get(Personnel, personnel_id)
+            periode = request.form.get("periode", "").strip()
+            devise = request.form.get("devise", "CDF").upper()
+            contrats = StaffContract.query.filter_by(personnel_id=personnel_id, devise=devise, statut="Actif").order_by(StaffContract.date_debut.desc()).all() if p else []
+            if not salaire and contrats:
+                salaire = contrats[0].salaire_base
+            avances_rows = StaffAdvance.query.filter_by(personnel_id=personnel_id, devise=devise, statut="À retenir").all() if p else []
+            avances = sum(x.montant for x in avances_rows)
+            net = salaire - avances - deductions
+            if not p or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", periode) or salaire <= 0 or deductions < 0 or devise not in ("CDF", "USD") or net < 0:
+                flash("Paie invalide : période AAAA-MM, salaire positif et net non négatif requis.", "error")
+            elif PayrollRecord.query.filter_by(personnel_id=p.id, periode=periode, devise=devise).first():
+                flash("Une paie existe déjà pour cette période et cette devise.", "error")
+            else:
+                record = PayrollRecord(personnel_id=p.id, periode=periode, salaire_base=salaire,
+                    avances=avances, deductions=deductions, net_a_payer=net, devise=devise,
+                    date_paiement=date_paiement, reference=request.form.get("reference", "").strip() or None)
+                db.session.add(record)
+                for advance in avances_rows:
+                    advance.statut = "Déduite"
+                db.session.commit()
+                flash("Paie enregistrée. Le bulletin de paie PDF est disponible.", "success")
+        return redirect(url_for("personnel"))
+    people = Personnel.query.order_by(Personnel.nom).all()
+    contracts = StaffContract.query.order_by(StaffContract.date_debut.desc()).all()
+    advances = StaffAdvance.query.filter_by(statut="À retenir").order_by(StaffAdvance.date_avance.desc()).all()
+    payrolls = PayrollRecord.query.order_by(PayrollRecord.date_paiement.desc()).all()
+    linked_users = User.query.filter(User.role.in_(("enseignant", "admin"))).order_by(User.nom).all()
+    template = """
+    <section class='panel'><h2>Ajouter un membre du personnel</h2>
+    <form method='post' class='form-grid'><input type='hidden' name='action' value='personnel'>
+      <label>Nom complet *<input name='nom' required></label><label>Fonction *<input name='fonction' required placeholder='Enseignant, comptable, secrétaire…'></label>
+      <label>Téléphone<input name='telephone'></label><label>E-mail<input type='email' name='email'></label>
+      <label>Compte lié (facultatif)<select name='user_id'><option value=''>Aucun compte</option>{% for u in linked_users %}<option value='{{ u.id }}'>{{ u.nom }} · {{ u.role }}</option>{% endfor %}</select></label>
+      <label>Statut<select name='statut'><option>Actif</option><option>Suspendu</option><option>Sorti</option></select></label>
+      <button class='btn primary'>Créer la fiche</button></form></section>
+    <section class='panel'><h2>Enregistrer un contrat</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='contract'>
+      <label>Personnel<select name='personnel_id' required>{% for p in people %}<option value='{{ p.id }}'>{{ p.nom }} · {{ p.fonction }}</option>{% endfor %}</select></label>
+      <label>Type de contrat<input name='type_contrat' required placeholder='CDI, CDD, prestation…'></label>
+      <label>Date de début<input type='date' name='date_debut' required></label><label>Date de fin (facultative)<input type='date' name='date_fin'></label>
+      <label>Salaire de base<input type='number' name='salaire_base' min='1' required></label><label>Devise<select name='devise'><option>CDF</option><option>USD</option></select></label>
+      <button class='btn primary' {% if not people %}disabled{% endif %}>Enregistrer le contrat</button></form></section>
+    <section class='panel'><h2>Enregistrer une avance</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='advance'>
+      <label>Personnel<select name='personnel_id' required>{% for p in people %}<option value='{{ p.id }}'>{{ p.nom }}</option>{% endfor %}</select></label>
+      <label>Montant<input type='number' name='montant' min='1' required></label><label>Devise<select name='devise'><option>CDF</option><option>USD</option></select></label>
+      <label>Date<input type='date' name='date_avance' required></label><label>Motif<input name='motif' required></label>
+      <button class='btn primary' {% if not people %}disabled{% endif %}>Enregistrer l'avance</button></form></section>
+    <section class='panel'><h2>Préparer une paie</h2><p>Les avances non encore retenues sont déduites automatiquement dans leur devise. Les devises CDF et USD ne sont jamais converties.</p>
+    <form method='post' class='form-grid'><input type='hidden' name='action' value='payroll'>
+      <label>Personnel<select name='personnel_id' required>{% for p in people %}<option value='{{ p.id }}'>{{ p.nom }}</option>{% endfor %}</select></label>
+      <label>Période (AAAA-MM)<input name='periode' pattern='[0-9]{4}-(0[1-9]|1[0-2])' placeholder='2026-11' required></label>
+      <label>Salaire de base (laisser 0 pour le contrat)<input type='number' name='salaire_base' min='0' value='0' required></label>
+      <label>Devise<select name='devise'><option>CDF</option><option>USD</option></select></label>
+      <label>Autres déductions<input type='number' name='deductions' min='0' value='0'></label>
+      <label>Date de paiement<input type='date' name='date_paiement' required></label><label>Référence<input name='reference'></label>
+      <button class='btn primary' {% if not people %}disabled{% endif %}>Valider la paie</button></form></section>
+    <section class='panel'><h2>Personnel</h2><div class='table-wrap'><table><tr><th>Nom</th><th>Fonction</th><th>Contact</th><th>Statut</th><th>Contrats</th></tr>
+    {% for p in people %}<tr><td>{{ p.nom }}</td><td>{{ p.fonction }}</td><td>{{ p.telephone or '—' }}<small class='sub'>{{ p.email or '' }}</small></td><td>{{ p.statut }}</td><td>{{ p.contrats|length }}</td></tr>{% else %}<tr><td colspan='5'>Aucun membre enregistré.</td></tr>{% endfor %}</table></div></section>
+    <section class='panel'><h2>Contrats</h2><div class='table-wrap'><table><tr><th>Personnel</th><th>Type</th><th>Période</th><th>Salaire</th><th>Statut</th></tr>
+    {% for c in contracts %}<tr><td>{{ c.personnel.nom }}</td><td>{{ c.type_contrat }}</td><td>{{ c.date_debut }} → {{ c.date_fin or 'Indéterminée' }}</td><td>{{ c.salaire_base }} {{ c.devise }}</td><td>{{ c.statut }}</td></tr>{% else %}<tr><td colspan='5'>Aucun contrat.</td></tr>{% endfor %}</table></div></section>
+    <section class='panel'><h2>Avances à retenir</h2><div class='table-wrap'><table><tr><th>Personnel</th><th>Date</th><th>Motif</th><th>Montant</th></tr>
+    {% for a in advances %}<tr><td>{{ a.personnel.nom }}</td><td>{{ a.date_avance }}</td><td>{{ a.motif }}</td><td>{{ a.montant }} {{ a.devise }}</td></tr>{% else %}<tr><td colspan='4'>Aucune avance en attente.</td></tr>{% endfor %}</table></div></section>
+    <section class='panel'><h2>Historique des paies</h2><div class='table-wrap'><table><tr><th>Personnel</th><th>Période</th><th>Salaire</th><th>Avances</th><th>Déductions</th><th>Net</th><th>Devise</th><th>Bulletin</th></tr>
+    {% for r in payrolls %}<tr><td>{{ r.personnel.nom }}</td><td>{{ r.periode }}</td><td>{{ r.salaire_base }}</td><td>{{ r.avances }}</td><td>{{ r.deductions }}</td><td><b>{{ r.net_a_payer }}</b></td><td>{{ r.devise }}</td><td><a href='/paie/{{ r.id }}/bulletin.pdf'>PDF</a></td></tr>{% else %}<tr><td colspan='8'>Aucune paie enregistrée.</td></tr>{% endfor %}</table></div></section>
+    """
+    return page("Personnel & paie", template, people=people, contracts=contracts,
+                advances=advances, payrolls=payrolls, linked_users=linked_users)
+
+
+@app.route("/mon-salaire")
+@login_required
+def mon_salaire():
+    if current_user.role not in ("enseignant", "admin"):
+        abort(403)
+    fiche = Personnel.query.filter_by(user_id=current_user.id).first()
+    if not fiche:
+        return page("Mon salaire", "<section class='panel'>Aucune fiche de personnel n'est liée à votre compte. Contactez l'administration.</section>")
+    return page("Mon salaire", """<section class='panel'><h2>Mes bulletins de paie</h2><div class='table-wrap'><table>
+    <tr><th>Période</th><th>Salaire de base</th><th>Avances</th><th>Déductions</th><th>Net</th><th>Devise</th><th>PDF</th></tr>
+    {% for r in payrolls %}<tr><td>{{ r.periode }}</td><td>{{ r.salaire_base }}</td><td>{{ r.avances }}</td><td>{{ r.deductions }}</td><td>{{ r.net_a_payer }}</td><td>{{ r.devise }}</td><td><a href='/paie/{{ r.id }}/bulletin.pdf'>Télécharger</a></td></tr>{% else %}<tr><td colspan='7'>Aucun bulletin disponible.</td></tr>{% endfor %}</table></div></section>""",
+        payrolls=PayrollRecord.query.filter_by(personnel_id=fiche.id).order_by(PayrollRecord.periode.desc()).all())
+
+
+@app.route("/paie/<int:payroll_id>/bulletin.pdf")
+@login_required
+def payroll_pdf(payroll_id):
+    record = db.get_or_404(PayrollRecord, payroll_id)
+    if current_user.role != "admin":
+        fiche = Personnel.query.filter_by(user_id=current_user.id).first() if current_user.role == "enseignant" else None
+        if not fiche or record.personnel_id != fiche.id:
+            abort(403)
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    except ImportError:
+        abort(503, description="ReportLab est absent. Installez requirements.txt.")
+    buffer = BytesIO()
+    green = colors.HexColor("#075b49")
+    gold = colors.HexColor("#d6ae45")
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=22*mm, leftMargin=22*mm, topMargin=22*mm, bottomMargin=20*mm)
+    styles = getSampleStyleSheet()
+    story = [Paragraph("ÉCOLE LA BONTÉ", ParagraphStyle("School", parent=styles["Title"], textColor=green, alignment=1)),
+        Paragraph("LUBUMBASHI · BULLETIN DE PAIE", ParagraphStyle("Sub", parent=styles["Normal"], alignment=1, textColor=colors.HexColor("#777777"))),
+        Spacer(1, 18)]
+    data = [["Membre du personnel", record.personnel.nom], ["Fonction", record.personnel.fonction],
+        ["Période", record.periode], ["Date de paiement", record.date_paiement.strftime("%d/%m/%Y")],
+        ["Salaire de base", f"{record.salaire_base:,} {record.devise}"],
+        ["Avances retenues", f"{record.avances:,} {record.devise}"],
+        ["Autres déductions", f"{record.deductions:,} {record.devise}"],
+        ["NET À PAYER", f"{record.net_a_payer:,} {record.devise}"]]
+    table = Table(data, colWidths=[75*mm, 90*mm])
+    table.setStyle(TableStyle([("BACKGROUND",(0,0),(0,-1),colors.HexColor("#eaf1ec")),
+        ("TEXTCOLOR",(0,0),(0,-1),green),("FONTNAME",(0,0),(0,-1),"Helvetica-Bold"),
+        ("GRID",(0,0),(-1,-1),.5,colors.HexColor("#cbd5ce")),("PADDING",(0,0),(-1,-1),9),
+        ("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#f8f1d8")),("TEXTCOLOR",(0,-1),(-1,-1),green),
+        ("FONTNAME",(0,-1),(-1,-1),"Helvetica-Bold")]))
+    story += [table, Spacer(1, 28), Paragraph("Signature du bénéficiaire : __________________________", styles["Normal"]),
+        Spacer(1, 18), Paragraph("Signature et cachet de la direction : __________________________", styles["Normal"])]
+    doc.build(story)
+    buffer.seek(0)
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True,
+        download_name="bulletin-paie-{}-{}.pdf".format(re.sub(r"[^A-Za-z0-9_-]+","-",record.personnel.nom), record.periode))
+
 
 @app.route("/manifest.json")
 def manifest(): return send_from_directory(ROOT/"static","manifest.json")
