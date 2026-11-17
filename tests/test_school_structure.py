@@ -17,7 +17,9 @@ class SchoolStructureTests(unittest.TestCase):
 
     def test_valid_classes(self):
         self.assertTrue(classe_valide("Maternelle", "1re année maternelle"))
+        self.assertTrue(classe_valide("Primaire", "1re année primaire"))
         self.assertTrue(classe_valide("Primaire", "6e année primaire"))
+        self.assertTrue(classe_valide("Secondaire", "1re secondaire"))
         self.assertTrue(classe_valide("Secondaire", "6e secondaire"))
 
     def test_rejects_class_from_another_cycle(self):
