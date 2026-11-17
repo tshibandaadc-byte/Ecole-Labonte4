@@ -2498,6 +2498,17 @@ with app.app_context():
             if col not in existing:
                 with db.engine.begin() as conn:
                     conn.exec_driver_sql("ALTER TABLE " + table + " ADD COLUMN " + col + " " + definition)
+    # Les anciens créneaux sans année sont conservés et rattachés à l'année active.
+    if "course_slot" in inspect(db.engine).get_table_names():
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql("""
+                UPDATE course_slot
+                SET annee_academique = COALESCE(
+                    (SELECT label FROM academic_year WHERE active = 1 ORDER BY id DESC LIMIT 1),
+                    '2026-2027'
+                )
+                WHERE annee_academique IS NULL OR annee_academique = ''
+            """)
     if not User.query.filter_by(email="admin@shemec.cd").first():
         initial_admin_password = os.getenv("ADMIN_PASSWORD")
         if not initial_admin_password or len(initial_admin_password) < 12:
