@@ -891,8 +891,19 @@ def eleve_qr(sid):
 def eleve_modifier(sid):
     s = db.get_or_404(Student,sid)
     if request.method == "POST":
-        for field in ("nom","promotion","classe"):
+        niveau_scolaire=request.form.get("niveau_scolaire","").strip()
+        classe_scolaire=request.form.get("classe","").strip()
+        option_scolaire=request.form.get("option_scolaire","Aucune").strip() or "Aucune"
+        if niveau_scolaire and (not classe_valide(niveau_scolaire, classe_scolaire) or not option_valide(niveau_scolaire, option_scolaire)):
+            abort(400)
+        for field in ("nom","promotion"):
             setattr(s, field, request.form[field].strip())
+        s.classe=classe_scolaire
+        if niveau_scolaire:
+            s.niveau_scolaire=niveau_scolaire
+            s.option_scolaire=option_scolaire if niveau_scolaire=="Secondaire" else None
+            s.faculte=niveau_scolaire
+            s.filiere=option_scolaire if niveau_scolaire=="Secondaire" else "Général"
         faculty_id=request.form.get("faculty_catalog_id", "").strip()
         program_id=request.form.get("program_catalog_id", "").strip()
         if faculty_id or program_id:
