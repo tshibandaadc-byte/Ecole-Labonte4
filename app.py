@@ -3,6 +3,7 @@ import shemec_app as core
 from shemec_app import *
 from progression import register_progression_routes
 from class_management import register_class_routes
+from pedagogy import register_timetable_routes
 
 # Ajoute le nouvel écran dans la navigation commune sans toucher aux autres pages.
 core.BASE = core.BASE.replace(
@@ -20,6 +21,12 @@ register_progression_routes(
 )
 register_class_routes(
     app, db, Student, User, TeacherAssignment, AcademicYear, page
+)
+register_timetable_routes(app, db, User, TeacherAssignment, CourseSlot, page)
+
+core.BASE = core.BASE.replace(
+    \"<a href='/horaire'>▦ Emploi du temps</a>\",
+    \"<a href='/horaire'>▦ Emploi du temps</a><a href='/planning-cours'>▤ Planning des cours</a>\"
 )
 
 if __name__ == "__main__":
