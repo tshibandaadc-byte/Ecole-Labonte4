@@ -1,4 +1,5 @@
 import os
+import csv
 from datetime import datetime, date
 import re
 from functools import wraps
@@ -666,7 +667,7 @@ FINANCES = """
 <article class='stat'><small>Recettes encaissées USD</small><strong>{{ "{:,.0f}".format(rapport.USD.recettes).replace(",", " ") }} USD</strong></article>
 <article class='stat'><small>Dépenses USD</small><strong>{{ "{:,.0f}".format(rapport.USD.depenses).replace(",", " ") }} USD</strong></article>
 <article class='stat'><small>Solde net USD</small><strong>{{ "{:,.0f}".format(rapport.USD.solde).replace(",", " ") }} USD</strong></article>
-</div><p class='muted'>Le solde net est calculé séparément en CDF et en USD, sans conversion entre les deux devises.</p></section>
+</div><p class='muted'>Le solde net est calculé séparément en CDF et en USD, sans conversion entre les deux devises.</p><div class='actions no-print'><a class='btn primary' href='{{ url_for("finances_report_pdf", date_debut=date_debut.isoformat() if date_debut else "", date_fin=date_fin.isoformat() if date_fin else "") }}'>Télécharger le rapport PDF</a> <a class='btn outline' href='{{ url_for("finances_export_csv", date_debut=date_debut.isoformat() if date_debut else "", date_fin=date_fin.isoformat() if date_fin else "") }}'>Exporter en CSV (Excel)</a></div></section>
 <section class='panel'><h2>État des dépenses</h2>
 <div class='stats-grid'><article class='stat'><small>Dépenses en CDF</small><strong>{{ "{:,.0f}".format(depenses_totales.CDF).replace(",", " ") }} CDF</strong></article>
 <article class='stat'><small>Dépenses en USD</small><strong>{{ "{:,.0f}".format(depenses_totales.USD).replace(",", " ") }} USD</strong></article></div>
@@ -1414,6 +1415,137 @@ def finances():
                 totaux=totaux, depenses=expenses, depenses_totales=depenses_totales,
                 rapport=rapport, date_debut=date_debut, date_fin=date_fin,
                 students=Student.query.order_by(Student.nom).all() if admin else [])
+
+
+def _finance_period_data():
+    try:
+        raw_start = request.args.get("date_debut", "").strip()
+        raw_end = request.args.get("date_fin", "").strip()
+        start = datetime.strptime(raw_start, "%Y-%m-%d").date() if raw_start else None
+        end = datetime.strptime(raw_end, "%Y-%m-%d").date() if raw_end else None
+    except ValueError:
+        abort(400, description="Format de date invalide.")
+    if start and end and start > end:
+        abort(400, description="La date de début doit précéder la date de fin.")
+    payments_query = Payment.query.join(Student).filter(
+        Payment.statut == "Payé", Payment.date_paiement.isnot(None))
+    expenses_query = SchoolExpense.query
+    if start:
+        payments_query = payments_query.filter(Payment.date_paiement >= start)
+        expenses_query = expenses_query.filter(SchoolExpense.date_depense >= start)
+    if end:
+        payments_query = payments_query.filter(Payment.date_paiement <= end)
+        expenses_query = expenses_query.filter(SchoolExpense.date_depense <= end)
+    return (start, end,
+            payments_query.order_by(Payment.date_paiement, Payment.id).all(),
+            expenses_query.order_by(SchoolExpense.date_depense, SchoolExpense.id).all())
+
+
+@app.route("/finances/export.csv")
+@login_required
+def finances_export_csv():
+    if current_user.role != "admin":
+        abort(403)
+    start, end, payments, expenses = _finance_period_data()
+    import io
+    text_buffer = io.StringIO(newline="")
+    writer = csv.writer(text_buffer, delimiter=";")
+    writer.writerow(["Date", "Type", "Élève", "Libellé", "Catégorie", "Montant", "Devise", "Référence"])
+    for payment in payments:
+        writer.writerow([payment.date_paiement.isoformat(), "Recette", payment.eleve.nom,
+                         payment.libelle, "Paiement scolaire", payment.montant,
+                         payment.devise, "REC-{:06d}".format(payment.id)])
+    for expense in expenses:
+        writer.writerow([expense.date_depense.isoformat(), "Dépense", "",
+                         expense.libelle, expense.categorie, expense.montant,
+                         expense.devise, expense.reference or ""])
+    output = BytesIO()
+    output.write(("\\ufeff" + text_buffer.getvalue()).encode("utf-8"))
+    output.seek(0)
+    suffix = "{}_{}".format(start.isoformat() if start else "debut", end.isoformat() if end else "fin")
+    return send_file(output, mimetype="text/csv; charset=utf-8", as_attachment=True,
+                     download_name="rapport-financier-{}.csv".format(suffix))
+
+
+@app.route("/finances/rapport.pdf")
+@login_required
+def finances_report_pdf():
+    if current_user.role != "admin":
+        abort(403)
+    start, end, payments, expenses = _finance_period_data()
+    try:
+        from xml.sax.saxutils import escape
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    except ImportError:
+        abort(503, description="ReportLab est absent. Installez requirements.txt.")
+    totals = {currency: {"recettes": 0, "depenses": 0} for currency in ("CDF", "USD")}
+    for payment in payments:
+        if payment.devise in totals:
+            totals[payment.devise]["recettes"] += payment.montant
+    for expense in expenses:
+        if expense.devise in totals:
+            totals[expense.devise]["depenses"] += expense.montant
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), rightMargin=14*mm,
+                            leftMargin=14*mm, topMargin=15*mm, bottomMargin=15*mm,
+                            title="Rapport financier - École Shemec")
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="ShemecFinanceTitle", parent=styles["Title"],
+                              textColor=colors.HexColor("#075b49"), fontSize=19, alignment=1))
+    period = "Période : {} au {}".format(start.strftime("%d/%m/%Y") if start else "Toutes dates",
+                                          end.strftime("%d/%m/%Y") if end else "Toutes dates")
+    story = [Paragraph("ÉCOLE SHEMEC — LUBUMBASHI", styles["ShemecFinanceTitle"]),
+             Paragraph("RAPPORT DE CAISSE", styles["Heading2"]),
+             Paragraph(escape(period), styles["Normal"]), Spacer(1, 8*mm)]
+    summary = [["Devise", "Recettes encaissées", "Dépenses", "Solde net"]]
+    for currency in ("CDF", "USD"):
+        income, cost = totals[currency]["recettes"], totals[currency]["depenses"]
+        summary.append([currency, "{:,.0f}".format(income).replace(",", " "),
+                        "{:,.0f}".format(cost).replace(",", " "),
+                        "{:,.0f}".format(income-cost).replace(",", " ")])
+    summary_table = Table(summary, colWidths=[35*mm, 55*mm, 55*mm, 50*mm])
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#075b49")),
+        ("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.5,colors.HexColor("#cbd5d1")),
+        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("PADDING",(0,0),(-1,-1),7),
+        ("ALIGN",(1,1),(-1,-1),"RIGHT")]))
+    story.extend([summary_table, Spacer(1, 8*mm), Paragraph("DÉTAIL DES OPÉRATIONS", styles["Heading2"])])
+    rows = [["Date", "Type", "Élève", "Libellé", "Catégorie", "Montant", "Devise", "Référence"]]
+    for payment in payments:
+        rows.append([payment.date_paiement.strftime("%d/%m/%Y"), "Recette",
+                     Paragraph(escape(payment.eleve.nom or ""), styles["BodyText"]),
+                     Paragraph(escape(payment.libelle or ""), styles["BodyText"]),
+                     "Paiement scolaire", "{:,.0f}".format(payment.montant).replace(",", " "),
+                     payment.devise, "REC-{:06d}".format(payment.id)])
+    for expense in expenses:
+        rows.append([expense.date_depense.strftime("%d/%m/%Y"), "Dépense", "",
+                     Paragraph(escape(expense.libelle or ""), styles["BodyText"]),
+                     Paragraph(escape(expense.categorie or ""), styles["BodyText"]),
+                     "{:,.0f}".format(expense.montant).replace(",", " "),
+                     expense.devise, escape(expense.reference or "—")])
+    if len(rows) == 1:
+        rows.append(["—", "Aucune opération", "", "", "", "", "", ""])
+    detail = Table(rows, repeatRows=1, colWidths=[23*mm, 22*mm, 35*mm, 48*mm, 35*mm, 27*mm, 17*mm, 28*mm])
+    detail.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#075b49")),
+        ("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#cbd5d1")),
+        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,-1),8),
+        ("VALIGN",(0,0),(-1,-1),"TOP"),("PADDING",(0,0),(-1,-1),5)]))
+    story.extend([detail, Spacer(1, 10*mm),
+                  Paragraph("Les soldes CDF et USD sont calculés séparément, sans conversion. "
+                            "Document généré le {}.".format(date.today().strftime("%d/%m/%Y")), styles["Italic"]),
+                  Spacer(1, 12*mm),
+                  Paragraph("Signature de la caisse : ____________________________     "
+                            "Direction : ____________________________", styles["Normal"])])
+    doc.build(story)
+    buffer.seek(0)
+    suffix = "{}_{}".format(start.isoformat() if start else "debut", end.isoformat() if end else "fin")
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True,
+                     download_name="rapport-financier-{}.pdf".format(suffix))
 
 
 @app.route("/finances/<int:payment_id>/recu.pdf")
