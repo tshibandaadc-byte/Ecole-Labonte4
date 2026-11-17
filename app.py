@@ -33,10 +33,6 @@ core.BASE = core.BASE.replace(
     "<a href='/horaire'>▦ Emploi du temps</a><a href='/planning-cours'>▤ Planning des cours</a>"
 )
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)),
-            debug=os.getenv("FLASK_DEBUG") == "1")
-
 core.BASE = core.BASE.replace(
     "<a href='/planning-cours'>▤ Planning des cours</a>",
     "<a href='/planning-cours'>▤ Planning des cours</a><a href='/suivi-enseignant'>♧ Suivi enseignants</a>"
@@ -46,3 +42,8 @@ core.BASE = core.BASE.replace(
     "<a href='/mon-salaire'>◈ Mon salaire</a>",
     "<a href='/mon-salaire'>◈ Mon salaire</a><a href='/espace-professionnel'>♙ Dossier professionnel</a>"
 )
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)),
+            debug=os.getenv("FLASK_DEBUG") == "1")
+
