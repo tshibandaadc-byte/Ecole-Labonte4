@@ -4,13 +4,15 @@ Les notes sont sur 20. Le classement est calculé sur les notes réellement
 enregistrées pour la même classe, année académique et période.
 """
 from collections import defaultdict
+from decimal import Decimal, ROUND_HALF_UP
 
 
 def moyenne_notes(notes):
-    valeurs = [float(note) for note in notes]
+    valeurs = [Decimal(str(note)) for note in notes]
     if not valeurs:
         return None
-    return round(sum(valeurs) / len(valeurs), 2)
+    moyenne = sum(valeurs, Decimal("0")) / Decimal(len(valeurs))
+    return float(moyenne.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def appreciation(moyenne):
