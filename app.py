@@ -269,7 +269,7 @@ DETAIL = """
 <section class='panel'><div class='profile'><img src='/static/uploads/{{ s.photo }}'><div><small>MATRICULE {{ s.matricule }}</small><h2>{{ s.nom }}</h2><p>{{ s.faculte }} · {{ s.filiere }}</p><span class='pill'>{{ s.promotion }} · {{ s.classe }}</span></div><div class='average'><strong>{{ s.moyenne }}</strong><small>Moyenne / 20</small></div></div>
 <div class='details'><div><small>Faculté</small><b>{{ s.faculte }}</b></div><div><small>Filière</small><b>{{ s.filiere }}</b></div><div><small>Promotion</small><b>{{ s.promotion }}</b></div><div><small>Classe</small><b>{{ s.classe }}</b></div><div><small>Nombre de cours</small><b>{{ s.nombre_cours }}</b></div><div><small>Crédits</small><b>{{ s.credits }}</b></div></div>
 <h3>Notes de l'élève</h3><div class='table-wrap'><table><tr><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in s.notes %}<tr><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td>{{ n.note }}/20</td></tr>{% else %}<tr><td colspan='3'>Aucune note saisie.</td></tr>{% endfor %}</table></div>
-<div class='actions'><a class='btn primary' href='/eleves/{{ s.id }}/modifier'>Modifier</a><form method='post' action='/eleves/{{ s.id }}/supprimer' onsubmit="return confirm('Supprimer ce dossier ?')"><button class='btn danger'>Supprimer</button></form></div></section>
+<div class='actions'><a class='btn primary' href='/eleves/{{ s.id }}/carte'>Carte élève / QR code</a><a class='btn primary' href='/eleves/{{ s.id }}/modifier'>Modifier</a><form method='post' action='/eleves/{{ s.id }}/supprimer' onsubmit="return confirm('Supprimer ce dossier ?')"><button class='btn danger'>Supprimer</button></form></div></section>
 """
 GRADES = """
 {% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<input name='periode' value='Trimestre 1'></label><button class='btn primary'>Enregistrer</button></form></section>
@@ -458,6 +458,57 @@ def eleve_nouveau():
 @admin_only
 def eleve_detail(sid):
     return page("Dossier de l'élève", DETAIL, s=db.get_or_404(Student,sid))
+
+
+
+@app.route("/eleves/<int:sid>/carte")
+@admin_only
+def eleve_carte(sid):
+    s = db.get_or_404(Student, sid)
+    template = """
+    <style>
+    .student-card{max-width:760px;margin:22px auto;padding:26px;border:3px solid #b58b26;border-radius:18px;background:linear-gradient(135deg,#fff,#f2f7f3);display:grid;grid-template-columns:1fr 150px;gap:20px;align-items:center}
+    .student-card .school{color:#075b49;font-weight:800;letter-spacing:1.5px;font-size:20px}
+    .student-card .subtitle{color:#65736b;font-size:11px;margin:5px 0 18px}
+    .student-card .student-photo{width:118px;height:140px;object-fit:cover;border:3px solid #b58b26;border-radius:10px}
+    .student-card .qr{width:132px;height:132px;object-fit:contain;background:white;padding:5px;border:1px solid #ddd;border-radius:8px}
+    .student-card .matricule{font-size:18px;font-weight:800;color:#075b49;letter-spacing:1px}
+    .student-card .field{margin:9px 0}.student-card small{display:block;color:#64736b;font-size:10px;text-transform:uppercase}
+    @media print{.side,header,.bottom-nav,.no-print,.alert{display:none!important}.layout,.main{display:block!important;margin:0!important;padding:0!important}.student-card{box-shadow:none;margin:20mm auto;break-inside:avoid}}
+    @media(max-width:560px){.student-card{grid-template-columns:1fr 110px;padding:15px;gap:10px}.student-card .student-photo{width:88px;height:108px}.student-card .qr{width:100px;height:100px}}
+    </style>
+    <section class="panel">
+      <div class="panel-head no-print"><div><h2>Carte d'élève</h2><p>Carte officielle à imprimer et plastifier</p></div><button class="btn primary" type="button" onclick="window.print()">Imprimer la carte</button></div>
+      <div class="student-card">
+        <div><div class="school">✦ ÉCOLE LA BONTÉ</div><div class="subtitle">LUBUMBASHI · CARTE D'IDENTIFICATION SCOLAIRE</div>
+          <img class="student-photo" src="/static/uploads/{{ s.photo }}" alt="Photo de l'élève">
+          <div class="field"><small>Nom complet</small><strong>{{ s.nom }}</strong></div>
+          <div class="field"><small>Matricule</small><div class="matricule">{{ s.matricule }}</div></div>
+          <div class="field"><small>Promotion · Classe</small><strong>{{ s.promotion }} · {{ s.classe }}</strong></div>
+          <div class="field"><small>Faculté · Filière</small><strong>{{ s.faculte }} · {{ s.filiere }}</strong></div>
+        </div>
+        <div style="text-align:center"><img class="qr" src="/eleves/{{ s.id }}/qr.png" alt="QR code du matricule"><small>Scanner pour lire le matricule</small></div>
+      </div>
+      <div class="actions no-print"><a class="btn outline" href="/eleves/{{ s.id }}">Retour au dossier</a></div>
+    </section>
+    """
+    return page("Carte d'élève", template, s=s)
+
+
+@app.route("/eleves/<int:sid>/qr.png")
+@admin_only
+def eleve_qr(sid):
+    s = db.get_or_404(Student, sid)
+    try:
+        import qrcode
+    except ImportError:
+        abort(503, description="Le module qrcode est absent. Installez requirements.txt.")
+    payload = "ECOLE LA BONTE | LUBUMBASHI | MATRICULE:" + s.matricule
+    image = qrcode.make(payload)
+    output = BytesIO()
+    image.save(output, format="PNG")
+    output.seek(0)
+    return send_file(output, mimetype="image/png", download_name="qr-" + s.matricule + ".png")
 
 @app.route("/eleves/<int:sid>/modifier", methods=["GET","POST"])
 @admin_only
