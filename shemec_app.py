@@ -2139,6 +2139,7 @@ def presences():
     <label>Statut<select name='statut'><option>Présent</option><option>Absent</option><option>Retard</option></select></label>
     <label>Motif<input name='motif'></label>
     <button class='btn primary' {% if not students %}disabled{% endif %}>Enregistrer</button></form></section>
+    {% if admin %}<section class='panel'><h2>Suivi administratif</h2><p>Analysez les présences, absences et retards sur une période.</p><a class='btn outline' href='/presences/rapport'>Ouvrir le rapport des présences</a></section>{% endif %}
     <section class='panel'><h2>Registre des présences</h2>
     <div class='table-wrap'><table><tr><th>Date</th><th>Classe</th><th>Élève</th><th>Matricule</th><th>Statut</th><th>Motif</th></tr>
     {% for r in records %}<tr><td>{{ r.jour.strftime('%d/%m/%Y') }}</td><td>{{ r.eleve.classe }}</td><td>{{ r.eleve.nom }}</td><td>{{ r.eleve.matricule }}</td><td>{{ r.statut }}</td><td>{{ r.motif }}</td></tr>
@@ -2147,6 +2148,100 @@ def presences():
     return page("Présences & absences", template, admin=admin,
         classes_autorisees=classes_autorisees, students=students,
         records=records, today=date.today().isoformat())
+
+@app.route("/presences/rapport")
+@admin_only
+def rapport_presences():
+    today = date.today()
+    try:
+        debut = date.fromisoformat(request.args.get("debut", today.replace(day=1).isoformat()))
+        fin = date.fromisoformat(request.args.get("fin", today.isoformat()))
+    except ValueError:
+        abort(400)
+    if debut > fin:
+        abort(400)
+
+    rows = Attendance.query.join(Student).filter(
+        Attendance.jour >= debut, Attendance.jour <= fin
+    ).order_by(Student.classe, Student.nom, Attendance.jour).all()
+
+    stats = {"Présent": 0, "Absent": 0, "Retard": 0}
+    par_classe = {}
+    for row in rows:
+        status = row.statut if row.statut in stats else "Autre"
+        if status in stats:
+            stats[status] += 1
+        group = par_classe.setdefault(row.eleve.classe, {
+            "total": 0, "Présent": 0, "Absent": 0, "Retard": 0
+        })
+        group["total"] += 1
+        if status in group:
+            group[status] += 1
+
+    total = len(rows)
+    taux = round(stats["Présent"] * 100 / total, 1) if total else 0
+    for group in par_classe.values():
+        group["taux"] = round(group["Présent"] * 100 / group["total"], 1) if group["total"] else 0
+
+    return page("Rapport des présences", """
+    <section class='panel'><h2>Période du rapport</h2>
+      <form method='get' class='inline-form'>
+        <label>Du<input type='date' name='debut' value='{{ debut }}' required></label>
+        <label>Au<input type='date' name='fin' value='{{ fin }}' required></label>
+        <button class='btn primary'>Filtrer</button>
+        <a class='btn outline' href='/presences/rapport.csv?debut={{ debut }}&fin={{ fin }}'>Exporter CSV</a>
+      </form>
+    </section>
+    <section class='stats'>
+      <article><small>Relevés enregistrés</small><strong>{{ total }}</strong></article>
+      <article><small>Présences</small><strong>{{ stats['Présent'] }}</strong></article>
+      <article><small>Absences</small><strong>{{ stats['Absent'] }}</strong></article>
+      <article><small>Retards</small><strong>{{ stats['Retard'] }}</strong></article>
+      <article><small>Taux de présence</small><strong>{{ taux }} %</strong></article>
+    </section>
+    <section class='panel'><h2>Résultats par classe</h2>
+      <div class='table-wrap'><table><tr><th>Classe</th><th>Relevés</th><th>Présents</th><th>Absents</th><th>Retards</th><th>Taux de présence</th></tr>
+      {% for classe, item in par_classe.items()|sort %}<tr><td>{{ classe }}</td><td>{{ item.total }}</td><td>{{ item['Présent'] }}</td><td>{{ item['Absent'] }}</td><td>{{ item['Retard'] }}</td><td>{{ item.taux }} %</td></tr>
+      {% else %}<tr><td colspan='6'>Aucun relevé pour cette période.</td></tr>{% endfor %}</table></div>
+      <p class='muted'>Le taux de présence correspond au nombre de relevés « Présent » divisé par tous les relevés de la période. Il ne représente pas un taux de présence par jour d'école.</p>
+    </section>
+    <section class='panel'><h2>Détail des relevés</h2><div class='table-wrap'><table>
+      <tr><th>Date</th><th>Classe</th><th>Élève</th><th>Matricule</th><th>Statut</th><th>Motif</th></tr>
+      {% for row in rows %}<tr><td>{{ row.jour.strftime('%d/%m/%Y') }}</td><td>{{ row.eleve.classe }}</td><td>{{ row.eleve.nom }}</td><td>{{ row.eleve.matricule }}</td><td>{{ row.statut }}</td><td>{{ row.motif or '—' }}</td></tr>
+      {% else %}<tr><td colspan='6'>Aucune donnée.</td></tr>{% endfor %}
+    </table></div></section>
+    <section class='panel'><a class='btn outline' href='/presences'>Retour au registre</a></section>
+    """, debut=debut.isoformat(), fin=fin.isoformat(), rows=rows,
+    total=total, stats=stats, taux=taux, par_classe=par_classe)
+
+
+@app.route("/presences/rapport.csv")
+@admin_only
+def rapport_presences_csv():
+    today = date.today()
+    try:
+        debut = date.fromisoformat(request.args.get("debut", today.replace(day=1).isoformat()))
+        fin = date.fromisoformat(request.args.get("fin", today.isoformat()))
+    except ValueError:
+        abort(400)
+    if debut > fin:
+        abort(400)
+    rows = Attendance.query.join(Student).filter(
+        Attendance.jour >= debut, Attendance.jour <= fin
+    ).order_by(Attendance.jour, Student.classe, Student.nom).all()
+    output = BytesIO()
+    import io
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";")
+    writer.writerow(["Date", "Classe", "Élève", "Matricule", "Statut", "Motif"])
+    for row in rows:
+        writer.writerow([row.jour.isoformat(), row.eleve.classe, row.eleve.nom,
+                         row.eleve.matricule, row.statut, row.motif or ""])
+    output.write(("\\ufeff" + buffer.getvalue()).encode("utf-8"))
+    output.seek(0)
+    return send_file(output, mimetype="text/csv; charset=utf-8",
+        as_attachment=True, download_name="rapport-presences-{}-{}.csv".format(debut, fin))
+
 
 @app.route("/assistant", methods=["GET","POST"])
 @login_required
