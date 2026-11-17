@@ -17,6 +17,8 @@ UPLOADS = ROOT / "static" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-only-change-this-secret")
+if os.getenv("RENDER") and (not os.getenv("SECRET_KEY") or not os.getenv("ADMIN_PASSWORD")):
+    raise RuntimeError("Configurez SECRET_KEY et ADMIN_PASSWORD dans les variables secrètes Render.")
 db_url = os.getenv("DATABASE_URL", "sqlite:///" + str(ROOT / "shemec.db"))
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql+psycopg://", 1)
