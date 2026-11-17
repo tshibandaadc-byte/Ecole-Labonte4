@@ -515,25 +515,76 @@ def horaire():
 @app.route("/presences", methods=["GET","POST"])
 @login_required
 def presences():
-    if current_user.role not in ("admin", "enseignant"): abort(403)
+    role = current_user.role
+    if role not in ("admin", "enseignant"):
+        abort(403)
 
-    if current_user.role not in ("admin","enseignant"): abort(403)
+    admin = role == "admin"
+    classes_autorisees = []
+    if not admin:
+        classes_autorisees = [row[0] for row in
+            db.session.query(TeacherAssignment.classe).filter_by(
+                teacher_id=current_user.id
+            ).distinct().all()]
+        if not classes_autorisees:
+            flash("Aucune classe ne vous est affectée. Contactez l'administration.", "warning")
+
     if request.method == "POST":
-        record = Attendance(student_id=int(request.form["student_id"]),
-            jour=datetime.strptime(request.form["jour"], "%Y-%m-%d").date(),
-            statut=request.form["statut"], motif=request.form.get("motif","").strip())
-        db.session.add(record); db.session.commit()
-        flash("Présence enregistrée.", "success")
+        try:
+            student_id = int(request.form.get("student_id", ""))
+            jour = datetime.strptime(request.form.get("jour", ""), "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            flash("Sélectionnez un élève et une date valides.", "error")
+            return redirect(url_for("presences"))
+
+        student = db.session.get(Student, student_id)
+        statut = request.form.get("statut", "")
+        motif = request.form.get("motif", "").strip()
+        if not student:
+            flash("L'élève sélectionné n'existe pas.", "error")
+        elif not admin and student.classe not in classes_autorisees:
+            abort(403)
+        elif statut not in ("Présent", "Absent", "Retard"):
+            flash("Statut de présence invalide.", "error")
+        else:
+            record = Attendance(student_id=student.id, jour=jour,
+                                statut=statut, motif=motif)
+            db.session.add(record)
+            db.session.commit()
+            flash("Présence enregistrée.", "success")
         return redirect(url_for("presences"))
-    students = Student.query.order_by(Student.nom).all()
-    records = Attendance.query.order_by(Attendance.jour.desc(), Attendance.id.desc()).limit(150).all()
+
+    student_query = Student.query
+    record_query = Attendance.query.join(Student)
+    if not admin:
+        if classes_autorisees:
+            student_query = student_query.filter(Student.classe.in_(classes_autorisees))
+            record_query = record_query.filter(Student.classe.in_(classes_autorisees))
+        else:
+            student_query = student_query.filter(db.false())
+            record_query = record_query.filter(db.false())
+
+    students = student_query.order_by(Student.classe, Student.nom).all()
+    records = record_query.order_by(
+        Attendance.jour.desc(), Attendance.id.desc()
+    ).limit(150).all()
     template = """
     <section class='panel'><h2>Enregistrer une présence ou une absence</h2>
-    <form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label>
-    <label>Date<input type='date' name='jour' value='{{ today }}' required></label><label>Statut<select name='statut'><option>Présent</option><option>Absent</option><option>Retard</option></select></label><label>Motif<input name='motif'></label><button class='btn primary'>Enregistrer</button></form></section>
-    <section class='panel'><h2>Registre des présences</h2><div class='table-wrap'><table><tr><th>Date</th><th>Élève</th><th>Matricule</th><th>Statut</th><th>Motif</th></tr>{% for r in records %}<tr><td>{{ r.jour.strftime('%d/%m/%Y') }}</td><td>{{ r.eleve.nom }}</td><td>{{ r.eleve.matricule }}</td><td>{{ r.statut }}</td><td>{{ r.motif }}</td></tr>{% else %}<tr><td colspan='5'>Aucun relevé.</td></tr>{% endfor %}</table></div></section>
+    {% if not admin and not classes_autorisees %}<p>Aucune classe ne vous est affectée. Vous ne pouvez pas enregistrer de présence.</p>{% endif %}
+    <form method='post' class='inline-form'>
+    <label>Élève<select name='student_id' required {% if not students %}disabled{% endif %}>{% for s in students %}<option value='{{ s.id }}'>{{ s.classe }} · {{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label>
+    <label>Date<input type='date' name='jour' value='{{ today }}' required></label>
+    <label>Statut<select name='statut'><option>Présent</option><option>Absent</option><option>Retard</option></select></label>
+    <label>Motif<input name='motif'></label>
+    <button class='btn primary' {% if not students %}disabled{% endif %}>Enregistrer</button></form></section>
+    <section class='panel'><h2>Registre des présences</h2>
+    <div class='table-wrap'><table><tr><th>Date</th><th>Classe</th><th>Élève</th><th>Matricule</th><th>Statut</th><th>Motif</th></tr>
+    {% for r in records %}<tr><td>{{ r.jour.strftime('%d/%m/%Y') }}</td><td>{{ r.eleve.classe }}</td><td>{{ r.eleve.nom }}</td><td>{{ r.eleve.matricule }}</td><td>{{ r.statut }}</td><td>{{ r.motif }}</td></tr>
+    {% else %}<tr><td colspan='6'>Aucun relevé pour les classes accessibles.</td></tr>{% endfor %}</table></div></section>
     """
-    return page("Présences & absences", template, students=students, records=records, today=date.today().isoformat())
+    return page("Présences & absences", template, admin=admin,
+        classes_autorisees=classes_autorisees, students=students,
+        records=records, today=date.today().isoformat())
 
 @app.route("/assistant", methods=["GET","POST"])
 @login_required
