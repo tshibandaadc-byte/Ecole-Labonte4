@@ -2123,11 +2123,18 @@ def presences():
         elif statut not in ("Présent", "Absent", "Retard"):
             flash("Statut de présence invalide.", "error")
         else:
-            record = Attendance(student_id=student.id, jour=jour,
-                                statut=statut, motif=motif)
-            db.session.add(record)
-            db.session.flush()
-            if statut == "Absent":
+            record = Attendance.query.filter_by(student_id=student.id, jour=jour).first()
+            is_new = record is None
+            previous_status = record.statut if record else None
+            if record:
+                record.statut = statut
+                record.motif = motif
+            else:
+                record = Attendance(student_id=student.id, jour=jour,
+                                    statut=statut, motif=motif)
+                db.session.add(record)
+                db.session.flush()
+            if statut == "Absent" and (is_new or previous_status != "Absent"):
                 alert_sender = current_app.extensions.get("shemec_parent_alert")
                 if alert_sender:
                     alert_sender(
@@ -2138,7 +2145,10 @@ def presences():
                         "absence-{}".format(record.id)
                     )
             db.session.commit()
-            flash("Présence enregistrée. Les parents liés ont été informés en cas d'absence.", "success")
+            journaliser("Enregistrement présence" if is_new else "Correction présence",
+                "Attendance", f"id={record.id}; élève={student.nom}; date={jour}; statut={statut}; précédent={previous_status or 'aucun'}")
+            db.session.commit()
+            flash("Présence enregistrée ou mise à jour. Les parents liés ont été informés en cas de nouvelle absence.", "success")
         return redirect(url_for("presences"))
 
     student_query = Student.query
