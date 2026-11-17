@@ -4,7 +4,8 @@ import re
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, request, redirect, url_for, flash, send_from_directory, render_template_string, abort
+from flask import Flask, request, redirect, url_for, flash, send_from_directory, send_file, render_template_string, abort
+from io import BytesIO
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -303,7 +304,7 @@ BULLETIN = """
 {% elif parent and not student %}{% if students %}<section class='panel no-print'><h2>Choisir un enfant</h2><form method='get' class='inline-form'><label>Enfant<select name='student_id' required><option value=''>Sélectionner</option>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><button class='btn primary'>Afficher le bulletin</button></form></section>{% else %}<section class='panel'>Aucun enfant n'est lié à votre compte. Contactez l'administration.</section>{% endif %}
 {% elif not student %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève. Contactez l'administration.</section>
 {% else %}
-<div class='panel no-print' style='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap'><div><b>Bulletins scolaires</b><p>Consultez les résultats par année académique et période.</p></div><button type='button' class='btn primary' onclick='window.print()'>Imprimer / Enregistrer en PDF</button></div>
+<div class='panel no-print' style='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap'><div><b>Bulletins scolaires</b><p>Consultez les résultats par année académique et période.</p></div><a class='btn primary' href='/bulletins/pdf?student_id={{ student.id }}'>Télécharger le bulletin PDF</a><button type='button' class='btn outline' onclick='window.print()'>Imprimer la page</button></div>
 {% for group in groups %}
 <section class='panel'>
   <div class='bulletin-head'><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h2>Bulletin scolaire</h2><p>Année académique {{ group.annee }} · {{ group.periode }}</p></div><div class='bulletin-mark'>✦</div></div>
@@ -612,6 +613,133 @@ def bulletins():
             })
     return page("Bulletins scolaires", BULLETIN, admin=is_admin,
                 parent=is_parent, students=students, student=student, groups=groups)
+
+
+
+
+@app.route("/bulletins/pdf")
+@login_required
+def bulletin_pdf():
+    is_admin = current_user.role == "admin"
+    is_parent = current_user.role == "parent"
+    if current_user.role == "enseignant":
+        abort(403)
+    raw_id = request.args.get("student_id", "").strip()
+    if is_admin:
+        if not raw_id: abort(400)
+        try: student = db.session.get(Student, int(raw_id))
+        except ValueError: abort(400)
+        if not student: abort(404)
+    elif is_parent:
+        children = parent_children(current_user)
+        if not raw_id and len(children) == 1:
+            student = children[0]
+        else:
+            try: sid = int(raw_id)
+            except (ValueError, TypeError): abort(400)
+            student = next((child for child in children if child.id == sid), None)
+            if not student: abort(403)
+    else:
+        student = db.session.get(Student, current_user.student_id) if current_user.student_id else None
+        if not student or (raw_id and raw_id != str(student.id)): abort(403)
+
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    except ImportError:
+        return "Le module PDF manque. Installez requirements.txt puis redémarrez.", 503
+
+    notes = Grade.query.filter_by(student_id=student.id).order_by(
+        Grade.annee_academique.desc(), Grade.periode, Grade.cours, Grade.id).all()
+    groups = {}
+    for n in notes:
+        groups.setdefault((n.annee_academique or "Non précisée",
+                           n.periode or "Période non précisée"), []).append(n)
+
+    buffer = BytesIO()
+    green, gold = colors.HexColor("#075b49"), colors.HexColor("#b58b26")
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=18*mm, leftMargin=18*mm,
+        topMargin=16*mm, bottomMargin=18*mm, title="Bulletin scolaire - "+student.nom,
+        author="École La Bonté · Lubumbashi")
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="School", parent=styles["Title"], fontSize=19,
+        leading=23, textColor=green, alignment=1, spaceAfter=2))
+    styles.add(ParagraphStyle(name="SubSchool", parent=styles["Normal"], fontSize=8,
+        textColor=colors.HexColor("#58645e"), alignment=1, spaceAfter=10))
+    styles.add(ParagraphStyle(name="BulletinTitle", parent=styles["Heading2"],
+        fontSize=14, textColor=green, alignment=1, spaceAfter=8))
+    story = []
+
+    def footer(canvas, document):
+        canvas.saveState()
+        canvas.setStrokeColor(gold); canvas.line(18*mm, 14*mm, A4[0]-18*mm, 14*mm)
+        canvas.setFont("Helvetica", 8); canvas.setFillColor(colors.HexColor("#58645e"))
+        canvas.drawString(18*mm, 8*mm, "École La Bonté · Lubumbashi")
+        canvas.drawRightString(A4[0]-18*mm, 8*mm, "Page %s" % document.page)
+        canvas.restoreState()
+
+    if not groups:
+        groups = {("Non précisée", "Aucune note"): []}
+    for index, ((year, period), rows) in enumerate(groups.items()):
+        if index: story.append(PageBreak())
+        story += [Paragraph("✦", ParagraphStyle(name="Emblem"+str(index),
+            parent=styles["Title"], fontSize=23, textColor=gold, alignment=1)),
+            Paragraph("ÉCOLE LA BONTÉ", styles["School"]),
+            Paragraph("LUBUMBASHI · RÉPUBLIQUE DÉMOCRATIQUE DU CONGO", styles["SubSchool"]),
+            Paragraph("BULLETIN SCOLAIRE", styles["BulletinTitle"]),
+            Paragraph("<b>Année académique :</b> "+escape(year)+" &nbsp;&nbsp; <b>Période :</b> "+escape(period), styles["Normal"]),
+            Spacer(1, 7)]
+        info = [
+            [Paragraph("<b>ÉLÈVE</b><br/>"+escape(student.nom), styles["Normal"]),
+             Paragraph("<b>MATRICULE</b><br/>"+escape(student.matricule), styles["Normal"])],
+            [Paragraph("<b>FACULTÉ / FILIÈRE</b><br/>"+escape(student.faculte)+" / "+escape(student.filiere), styles["Normal"]),
+             Paragraph("<b>PROMOTION / CLASSE</b><br/>"+escape(student.promotion)+" / "+escape(student.classe), styles["Normal"])]
+        ]
+        t=Table(info,colWidths=[87*mm,87*mm],rowHeights=[17*mm,17*mm])
+        t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#f1f6f2")),
+            ("BOX",(0,0),(-1,-1),.6,colors.HexColor("#cbd8d0")),
+            ("INNERGRID",(0,0),(-1,-1),.4,colors.HexColor("#d5dfd9")),
+            ("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),9)]))
+        story += [t, Spacer(1,9)]
+        data=[["MATIÈRE / COURS","NOTE OBTENUE","MAXIMUM"]]
+        data += [[Paragraph(escape(n.cours),styles["Normal"]),"{:.2f}".format(n.note),"20"] for n in rows]
+        table=Table(data,colWidths=[112*mm,31*mm,31*mm],repeatRows=1)
+        table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),green),
+            ("TEXTCOLOR",(0,0),(-1,0),colors.white),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+            ("GRID",(0,0),(-1,-1),.5,colors.HexColor("#b9c8bf")),
+            ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#f6f8f6")]),
+            ("ALIGN",(1,1),(-1,-1),"CENTER"),("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+            ("FONTSIZE",(0,0),(-1,-1),9),("TOPPADDING",(0,0),(-1,-1),7),
+            ("BOTTOMPADDING",(0,0),(-1,-1),7)]))
+        story += [table, Spacer(1,10)]
+        if rows:
+            avg=sum(n.note for n in rows)/len(rows)
+            appr=("Très bien" if avg>=16 else "Bien" if avg>=14 else
+                  "Assez bien" if avg>=12 else "Passable" if avg>=10 else "Insuffisant")
+            summary=[["MOYENNE GÉNÉRALE","APPRÉCIATION","RÉSULTAT"],
+                     ["{:.2f}/20".format(avg),appr,"Admis" if avg>=10 else "À renforcer"]]
+        else:
+            summary=[["MOYENNE GÉNÉRALE","APPRÉCIATION","RÉSULTAT"],["—","—","En attente de notes"]]
+        st=Table(summary,colWidths=[58*mm,58*mm,58*mm])
+        st.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#eaf1ec")),
+            ("TEXTCOLOR",(0,0),(-1,0),green),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+            ("FONTNAME",(0,1),(-1,1),"Helvetica-Bold"),("ALIGN",(0,0),(-1,-1),"CENTER"),
+            ("BOX",(0,0),(-1,-1),.6,gold),("INNERGRID",(0,0),(-1,-1),.4,colors.HexColor("#d5dfd9")),
+            ("FONTSIZE",(0,0),(-1,-1),9),("TOPPADDING",(0,0),(-1,-1),8),
+            ("BOTTOMPADDING",(0,0),(-1,-1),8)]))
+        story += [st, Spacer(1,28)]
+        sig=Table([["Le titulaire","La Direction"],["\n\n________________________","\n\n________________________"]],
+                  colWidths=[87*mm,87*mm])
+        sig.setStyle(TableStyle([("ALIGN",(0,0),(-1,-1),"CENTER"),
+            ("TEXTCOLOR",(0,0),(-1,0),green),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold")]))
+        story.append(sig)
+    doc.build(story,onFirstPage=footer,onLaterPages=footer)
+    buffer.seek(0)
+    filename="bulletin-"+re.sub(r"[^A-Za-z0-9_-]+","-",student.matricule)+".pdf"
+    return send_file(buffer,mimetype="application/pdf",as_attachment=True,download_name=filename)
 
 
 @app.route("/finances", methods=["GET","POST"])
