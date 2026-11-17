@@ -301,12 +301,12 @@ def matricule_valide(value):
 BASE = """
 <!doctype html><html lang='fr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
-<title>{{ title }} · École La Bonté</title></head><body>
-{% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
+<title>{{ title }} · École Shemec</title></head><body>
+{% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE SHEMEC<small>ESPACE SCOLAIRE</small></span></a>
 <nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a><a href='/personnel'>♙ Personnel & paie</a>{% endif %}{% if current_user.role in ['enseignant','admin'] %}<a href='/mon-salaire'>◈ Mon salaire</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/frais'>▣ Frais par classe</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
-<main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
+<main class='main'><header><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
 {% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}
 {{ content|safe }}</main><nav class='bottom-nav'><a href='/'>Accueil</a>{% if current_user.role=='admin' %}<a href='/eleves'>Élèves</a>{% endif %}{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>Présences</a>{% endif %}<a href='/notes'>Notes</a><a href='/bulletins'>Bulletins</a><a href='/messages'>Messages</a><a href='/finances'>Finances</a><a href='/frais'>Frais</a></nav></div>
 {% else %}{% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}{{ content|safe }}{% endif %}
@@ -317,11 +317,16 @@ def page(title, template, **context):
     content = render_template_string(template, **context)
     return render_template_string(BASE, title=title, content=content)
 
+
+@app.route('/accueil')
+def accueil():
+    return page('Accueil', PUBLIC_HOME)
+
 LOGIN = """
-<div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><small class='kicker'>BIENVENUE À</small><h1>École La Bonté</h1><p>Votre espace scolaire numérique.</p>
+<div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><small class='kicker'>BIENVENUE À</small><h1>École Shemec</h1><p>Votre espace scolaire numérique.</p>
 <label>Matricule ou adresse e-mail<input name='identifier' required autocomplete='username'></label>
 <label>Mot de passe<input type='password' name='password' required autocomplete='current-password'></label>
-<button class='btn primary wide'>Se connecter</button><a href='/creer-compte-eleve'>Créer un compte Élève – École La Bonté, Chemègue, Lubumbashi</a><a href='/admission'>Déposer une demande d'admission</a><small class='muted'>Élèves · Parents · Enseignants · Administration</small></form></div>
+<button class='btn primary wide'>Se connecter</button><a href='/creer-compte-eleve'>Créer un compte Élève – École Shemec, Chemègue, Lubumbashi</a><a href='/accueil'>Retour au site de l'École Shemec</a><a href='/admission'>Déposer une demande d'admission</a><small class='muted'>Élèves · Parents · Enseignants · Administration</small></form></div>
 """
 DASH_ADMIN = """
 <section class='hero'><div><small>VUE GÉNÉRALE</small><h2>Bonjour, {{ current_user.nom }} 👋</h2><p>Bienvenue dans votre espace de gestion.</p></div><span>✦</span></section>
@@ -428,7 +433,7 @@ BULLETIN = """
 <div class='panel no-print' style='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap'><div><b>Bulletins scolaires</b><p>Consultez les résultats par année académique et période.</p></div><a class='btn primary' href='/bulletins/pdf?student_id={{ student.id }}'>Télécharger le bulletin PDF</a><button type='button' class='btn outline' onclick='window.print()'>Imprimer la page</button></div>
 {% for group in groups %}
 <section class='panel'>
-  <div class='bulletin-head'><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h2>Bulletin scolaire</h2><p>Année académique {{ group.annee }} · {{ group.periode }}</p></div><div class='bulletin-mark'>✦</div></div>
+  <div class='bulletin-head'><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h2>Bulletin scolaire</h2><p>Année académique {{ group.annee }} · {{ group.periode }}</p></div><div class='bulletin-mark'>✦</div></div>
   <div class='bulletin-meta'><div><small>ÉLÈVE</small><b>{{ student.nom }}</b></div><div><small>MATRICULE</small><b>{{ student.matricule }}</b></div><div><small>FACULTÉ / FILIÈRE</small><b>{{ student.faculte }} · {{ student.filiere }}</b></div><div><small>PROMOTION / CLASSE</small><b>{{ student.promotion }} · {{ student.classe }}</b></div></div>
   <div class='table-wrap'><table><tr><th>Matière / Cours</th><th>Note obtenue</th><th>Maximum</th></tr>{% for n in group.notes %}<tr><td>{{ n.cours }}</td><td><b>{{ '%.2f'|format(n.note) }}</b></td><td>20</td></tr>{% endfor %}</table></div>
   <div class='bulletin-summary'><div><small>Moyenne générale</small><strong>{{ '%.2f'|format(group.moyenne) }}/20</strong></div><div><small>Appréciation</small><strong>{{ group.appreciation }}</strong></div><div><small>Résultat</small><strong>{{ 'Admis' if group.moyenne >= 10 else 'À renforcer' }}</strong></div></div>
@@ -486,7 +491,7 @@ FEES = """
 
 
 ADMISSION_FORM = """
-<section class='hero'><div><small>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h2>Demande d'admission</h2><p>Remplissez les informations pour soumettre un dossier à l'administration.</p></div><span>✦</span></section>
+<section class='hero'><div><small>ÉCOLE SHEMEC · LUBUMBASHI</small><h2>Demande d'admission</h2><p>Remplissez les informations pour soumettre un dossier à l'administration.</p></div><span>✦</span></section>
 <section class='panel'><form method='post' enctype='multipart/form-data' class='form-grid'>
 <label>Nom complet de l'élève *<input name='nom' required maxlength='160'></label>
 <label>Photo de l'élève *<input type='file' name='photo' accept='.jpg,.jpeg,.png,.webp' required></label>
@@ -531,8 +536,9 @@ ACCOUNTS = """
 """
 
 @app.route("/")
-@login_required
 def dashboard():
+    if not current_user.is_authenticated:
+        return redirect(url_for("accueil"))
     if current_user.role == "enseignant":
         return page("Espace enseignant", DASH_TEACHER, affectations=TeacherAssignment.query.filter_by(teacher_id=current_user.id).order_by(TeacherAssignment.annee_academique.desc(), TeacherAssignment.classe).all())
     if current_user.role == "admin":
@@ -676,7 +682,7 @@ def eleve_carte(sid):
     <section class="panel">
       <div class="panel-head no-print"><div><h2>Carte d'élève</h2><p>Carte officielle à imprimer et plastifier</p></div><button class="btn primary" type="button" onclick="window.print()">Imprimer la carte</button></div>
       <div class="student-card">
-        <div><div class="school">✦ ÉCOLE LA BONTÉ</div><div class="subtitle">LUBUMBASHI · CARTE D'IDENTIFICATION SCOLAIRE</div>
+        <div><div class="school">✦ ÉCOLE SHEMEC</div><div class="subtitle">LUBUMBASHI · CARTE D'IDENTIFICATION SCOLAIRE</div>
           <img class="student-photo" src="/static/uploads/{{ s.photo }}" alt="Photo de l'élève">
           <div class="field"><small>Nom complet</small><strong>{{ s.nom }}</strong></div>
           <div class="field"><small>Matricule</small><div class="matricule">{{ s.matricule }}</div></div>
@@ -699,7 +705,7 @@ def eleve_qr(sid):
         import qrcode
     except ImportError:
         abort(503, description="Le module qrcode est absent. Installez requirements.txt.")
-    payload = "ECOLE LA BONTE | LUBUMBASHI | MATRICULE:" + s.matricule
+    payload = "ECOLE SHEMEC | LUBUMBASHI | MATRICULE:" + s.matricule
     image = qrcode.make(payload)
     output = BytesIO()
     image.save(output, format="PNG")
@@ -910,7 +916,7 @@ def bulletin_pdf():
     green, gold = colors.HexColor("#075b49"), colors.HexColor("#b58b26")
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=18*mm, leftMargin=18*mm,
         topMargin=16*mm, bottomMargin=18*mm, title="Bulletin scolaire - "+student.nom,
-        author="École La Bonté · Lubumbashi")
+        author="École Shemec · Lubumbashi")
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="School", parent=styles["Title"], fontSize=19,
         leading=23, textColor=green, alignment=1, spaceAfter=2))
@@ -924,7 +930,7 @@ def bulletin_pdf():
         canvas.saveState()
         canvas.setStrokeColor(gold); canvas.line(18*mm, 14*mm, A4[0]-18*mm, 14*mm)
         canvas.setFont("Helvetica", 8); canvas.setFillColor(colors.HexColor("#58645e"))
-        canvas.drawString(18*mm, 8*mm, "École La Bonté · Lubumbashi")
+        canvas.drawString(18*mm, 8*mm, "École Shemec · Lubumbashi")
         canvas.drawRightString(A4[0]-18*mm, 8*mm, "Page %s" % document.page)
         canvas.restoreState()
 
@@ -934,7 +940,7 @@ def bulletin_pdf():
         if index: story.append(PageBreak())
         story += [Paragraph("✦", ParagraphStyle(name="Emblem"+str(index),
             parent=styles["Title"], fontSize=23, textColor=gold, alignment=1)),
-            Paragraph("ÉCOLE LA BONTÉ", styles["School"]),
+            Paragraph("ÉCOLE SHEMEC", styles["School"]),
             Paragraph("LUBUMBASHI · RÉPUBLIQUE DÉMOCRATIQUE DU CONGO", styles["SubSchool"]),
             Paragraph("BULLETIN SCOLAIRE", styles["BulletinTitle"]),
             Paragraph("<b>Année académique :</b> "+escape(year)+" &nbsp;&nbsp; <b>Période :</b> "+escape(period), styles["Normal"]),
@@ -1062,7 +1068,7 @@ def payment_receipt_pdf(payment_id):
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="ReceiptSchool", parent=styles["Title"],
                               fontSize=20, textColor=green, alignment=1, spaceAfter=5))
-    story = [Paragraph("ECOLE LA BONTE", styles["ReceiptSchool"]),
+    story = [Paragraph("ECOLE SHEMEC", styles["ReceiptSchool"]),
              Paragraph("LUBUMBASHI - RECU DE PAIEMENT SCOLAIRE", styles["Heading2"]), Spacer(1, 18)]
     rows = [
         ["NUMERO DU RECU", "REC-{:06d}".format(payment.id)],
@@ -1219,7 +1225,7 @@ def fee_payment_receipt(payment_id):
         ("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),9),
         ("FONTSIZE",(0,0),(-1,-1),10)
     ]))
-    story = [Paragraph("ÉCOLE LA BONTÉ", styles["FeeReceiptTitle"]),
+    story = [Paragraph("ÉCOLE SHEMEC", styles["FeeReceiptTitle"]),
              Paragraph("LUBUMBASHI · REÇU DE VERSEMENT", styles["Heading2"]),
              Spacer(1, 16), table, Spacer(1, 35),
              Paragraph("Signature et cachet de la caisse : ______________________________", styles["Normal"])]
@@ -1374,7 +1380,7 @@ def student_enrollment_pdf(sid):
         ("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),9),
         ("FONTSIZE",(0,0),(-1,-1),10)
     ]))
-    story = [Paragraph("ÉCOLE LA BONTÉ", styles["EnrollmentTitle"]),
+    story = [Paragraph("ÉCOLE SHEMEC", styles["EnrollmentTitle"]),
              Paragraph("LUBUMBASHI · ATTESTATION D'INSCRIPTION", styles["Heading2"]),
              Spacer(1, 18), table, Spacer(1, 35),
              Paragraph("La Direction", styles["Normal"]),
@@ -1876,7 +1882,7 @@ def payroll_pdf(payroll_id):
     gold = colors.HexColor("#d6ae45")
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=22*mm, leftMargin=22*mm, topMargin=22*mm, bottomMargin=20*mm)
     styles = getSampleStyleSheet()
-    story = [Paragraph("ÉCOLE LA BONTÉ", ParagraphStyle("School", parent=styles["Title"], textColor=green, alignment=1)),
+    story = [Paragraph("ÉCOLE SHEMEC", ParagraphStyle("School", parent=styles["Title"], textColor=green, alignment=1)),
         Paragraph("LUBUMBASHI · BULLETIN DE PAIE", ParagraphStyle("Sub", parent=styles["Normal"], alignment=1, textColor=colors.HexColor("#777777"))),
         Spacer(1, 18)]
     data = [["Membre du personnel", record.personnel.nom], ["Fonction", record.personnel.fonction],
