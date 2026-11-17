@@ -356,6 +356,9 @@ FINANCES = """
 """
 
 FEES = """
+<section class='panel'><form method='get' class='inline-form'>
+<label>Année académique à consulter<input name='annee' value='{{ annee }}' required placeholder='2026-2027'></label>
+<button class='btn outline'>Afficher</button></form></section>
 {% if admin %}
 <section class='panel'><h2>Définir les frais d'une classe</h2>
 <form method='post' class='inline-form'>
@@ -1017,12 +1020,12 @@ def school_fees():
         students = parent_children(current_user)
         student_ids = [s.id for s in students]
         fees = SchoolFee.query.filter_by(annee_academique=year).all()
-        payments_query = FeePayment.query.filter(FeePayment.student_id.in_(student_ids)) if student_ids else FeePayment.query.filter(db.false())
+        payments_query = FeePayment.query.join(SchoolFee).filter(SchoolFee.annee_academique == year, FeePayment.student_id.in_(student_ids)) if student_ids else FeePayment.query.filter(db.false())
     elif current_user.role == "eleve" and current_user.student_id:
         student = db.session.get(Student, current_user.student_id)
         students = [student] if student else []
         fees = SchoolFee.query.filter_by(annee_academique=year).all()
-        payments_query = FeePayment.query.filter_by(student_id=current_user.student_id)
+        payments_query = FeePayment.query.join(SchoolFee).filter(SchoolFee.annee_academique == year, FeePayment.student_id == current_user.student_id)
     else:
         abort(403)
     soldes = []
@@ -1037,7 +1040,7 @@ def school_fees():
                            "paye": paid, "reste": max(0, fee.montant - paid)})
     versements = payments_query.order_by(FeePayment.date_paiement.desc(), FeePayment.id.desc()).all()
     return page("Frais par classe", FEES, admin=admin, students=students,
-                frais=fees, soldes=soldes, versements=versements)
+                frais=fees, soldes=soldes, versements=versements, annee=year)
 
 
 @app.route("/frais/versement/<int:payment_id>/recu.pdf")
