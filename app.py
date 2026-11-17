@@ -202,8 +202,28 @@ STUDENT_FORM = """
 <label>Année d'inscription *<input type='number' name='annee_inscription' required value='{{ s.annee_inscription if s else "" }}'></label>
 <label>Code faculté *<input name='code_faculte' pattern='[0-9]{2}' maxlength='2' required value='{{ s.code_faculte if s else "" }}'></label>
 <label>Code filière *<input name='code_filiere' pattern='[0-9]{2}' maxlength='2' required value='{{ s.code_filiere if s else "" }}'></label>
+{% if faculties %}
+<label>Faculté du catalogue *<select name='faculty_catalog_id' id='faculty_catalog_id' required><option value=''>Choisir une faculté</option>{% for f in faculties %}<option value='{{ f.id }}' data-code='{{ f.code }}' {% if s and s.faculte==f.nom %}selected{% endif %}>{{ f.code }} · {{ f.nom }}</option>{% endfor %}</select></label>
+<label>Filière du catalogue *<select name='program_catalog_id' id='program_catalog_id' required><option value=''>Choisir une filière</option>{% for f in faculties %}{% for p in f.filieres %}<option value='{{ p.id }}' data-faculty='{{ f.id }}' data-code='{{ p.code }}' {% if s and s.filiere==p.nom and s.faculte==f.nom %}selected{% endif %}>{{ p.code }} · {{ p.nom }}</option>{% endfor %}{% endfor %}</select></label>
+<script>
+(function(){
+ const faculty=document.getElementById('faculty_catalog_id');
+ const program=document.getElementById('program_catalog_id');
+ if(!faculty||!program)return;
+ const options=Array.from(program.options);
+ function filterPrograms(){
+   const selected=faculty.value, previous=program.value;
+   options.forEach(o=>{if(o.value)o.hidden=(o.dataset.faculty!==selected);});
+   if(program.selectedOptions.length && program.selectedOptions[0].hidden)program.value='';
+   if(!program.value && previous){const match=options.find(o=>o.value===previous&&o.dataset.faculty===selected);if(match)program.value=previous;}
+ }
+ faculty.addEventListener('change',filterPrograms);filterPrograms();
+})();
+</script>
+{% else %}
 <label>Faculté *<input name='faculte' required value='{{ s.faculte if s else "" }}'></label>
 <label>Filière *<input name='filiere' required value='{{ s.filiere if s else "" }}'></label>
+{% endif %}
 <label>Promotion *<input name='promotion' required placeholder='Promotion 2026 / G1 / L1' value='{{ s.promotion if s else "" }}'></label>
 <label>Nombre de cours<input type='number' min='0' name='nombre_cours' value='{{ s.nombre_cours if s else 0 }}'></label>
 <label>Nombre de crédits<input type='number' min='0' name='credits' value='{{ s.credits if s else 0 }}'></label>
@@ -311,11 +331,11 @@ def eleve_nouveau():
         photo = request.files.get("photo")
         if not photo or not photo.filename:
             flash("La photo de profil est obligatoire.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="")
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
         ext = photo.filename.rsplit(".",1)[-1].lower()
         if ext not in ALLOWED:
             flash("Format accepté : JPG, PNG ou WEBP.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="")
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
         filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
         photo.save(UPLOADS / filename)
         matricule=request.form.get("matricule","").strip()
@@ -323,15 +343,28 @@ def eleve_nouveau():
         if not matricule_valide(matricule) or Student.query.filter_by(matricule=matricule).first() or matricule.split("-")[:3] != [str(annee),cf,cfi]:
             (UPLOADS / filename).unlink(missing_ok=True)
             flash("Matricule invalide, déjà utilisé ou incohérent avec l'année, la faculté et la filière.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="")
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+        faculty_id=request.form.get("faculty_catalog_id", "").strip()
+        program_id=request.form.get("program_catalog_id", "").strip()
+        if faculty_id or program_id:
+            faculty=db.session.get(FacultyCatalog, int(faculty_id)) if faculty_id.isdigit() else None
+            program=db.session.get(ProgramCatalog, int(program_id)) if program_id.isdigit() else None
+            if not faculty or not program or program.faculty_id != faculty.id or [faculty.code, program.code] != [cf, cfi]:
+                (UPLOADS / filename).unlink(missing_ok=True)
+                flash("La faculté, la filière et leurs codes doivent correspondre au matricule.", "error")
+                return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            faculte_name, filiere_name = faculty.nom, program.nom
+        else:
+            faculte_name=request.form.get("faculte","").strip()
+            filiere_name=request.form.get("filiere","").strip()
         s = Student(matricule=matricule, annee_inscription=annee, code_faculte=cf, code_filiere=cfi, nom=request.form["nom"].strip(), photo=filename,
-            faculte=request.form["faculte"].strip(), filiere=request.form["filiere"].strip(),
+            faculte=faculte_name, filiere=filiere_name,
             promotion=request.form["promotion"].strip(), classe=request.form["classe"].strip(),
             nombre_cours=int(request.form.get("nombre_cours") or 0), credits=int(request.form.get("credits") or 0))
         db.session.add(s); db.session.commit()
         flash("Inscription enregistrée : " + s.matricule, "success")
         return redirect(url_for("eleve_detail", sid=s.id))
-    return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="")
+    return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
 
 @app.route("/eleves/<int:sid>")
 @admin_only
@@ -343,17 +376,29 @@ def eleve_detail(sid):
 def eleve_modifier(sid):
     s = db.get_or_404(Student,sid)
     if request.method == "POST":
-        for field in ("nom","faculte","filiere","promotion","classe"):
+        for field in ("nom","promotion","classe"):
             setattr(s, field, request.form[field].strip())
+        faculty_id=request.form.get("faculty_catalog_id", "").strip()
+        program_id=request.form.get("program_catalog_id", "").strip()
+        if faculty_id or program_id:
+            faculty=db.session.get(FacultyCatalog, int(faculty_id)) if faculty_id.isdigit() else None
+            program=db.session.get(ProgramCatalog, int(program_id)) if program_id.isdigit() else None
+            if not faculty or not program or program.faculty_id != faculty.id or [faculty.code, program.code] != [s.code_faculte, s.code_filiere]:
+                flash("La faculté et la filière choisies doivent correspondre aux codes du matricule. Corrigez le matricule auprès de la Direction si nécessaire.", "error")
+                return page("Modifier l'élève", STUDENT_FORM, s=s, matricule=s.matricule, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            s.faculte, s.filiere = faculty.nom, program.nom
+        else:
+            s.faculte=request.form.get("faculte",s.faculte).strip()
+            s.filiere=request.form.get("filiere",s.filiere).strip()
         s.nombre_cours=int(request.form.get("nombre_cours") or 0); s.credits=int(request.form.get("credits") or 0)
         photo=request.files.get("photo")
         if photo and photo.filename:
             ext=photo.filename.rsplit(".",1)[-1].lower()
-            if ext not in ALLOWED: flash("Format photo invalide.","error"); return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule)
+            if ext not in ALLOWED: flash("Format photo invalide.","error"); return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
             filename=datetime.utcnow().strftime("%Y%m%d%H%M%S%f")+"_"+secure_filename(photo.filename)
             photo.save(UPLOADS/filename); s.photo=filename
         db.session.commit(); flash("Dossier modifié.","success"); return redirect(url_for("eleve_detail",sid=s.id))
-    return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule)
+    return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
 
 @app.route("/eleves/<int:sid>/supprimer", methods=["POST"])
 @admin_only
