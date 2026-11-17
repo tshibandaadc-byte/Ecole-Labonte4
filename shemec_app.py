@@ -6,7 +6,7 @@ from functools import wraps
 from pathlib import Path
 
 from flask import Flask, current_app, request, redirect, url_for, flash, send_from_directory, send_file, render_template_string, abort
-from io import BytesIO
+from io import BytesIO, StringIO
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -2651,6 +2651,7 @@ def personnel():
     payrolls = PayrollRecord.query.order_by(PayrollRecord.date_paiement.desc()).all()
     linked_users = User.query.filter(User.role.in_(("enseignant", "admin"))).order_by(User.nom).all()
     template = """
+    <section class='panel'><p><a class='btn outline' href='/paie/rapport'>Consulter le rapport de paie et les échéances des contrats</a></p></section>
     <section class='panel'><h2>Ajouter un membre du personnel</h2>
     <form method='post' class='form-grid'><input type='hidden' name='action' value='personnel'>
       <label>Nom complet *<input name='nom' required></label><label>Fonction *<input name='fonction' required placeholder='Enseignant, comptable, secrétaire…'></label>
@@ -2689,6 +2690,64 @@ def personnel():
     """
     return page("Personnel & paie", template, people=people, contracts=contracts,
                 advances=advances, payrolls=payrolls, linked_users=linked_users)
+
+
+@app.route("/paie/rapport")
+@admin_only
+def payroll_report():
+    debut = request.args.get("debut", date.today().strftime("%Y-%m")).strip()
+    fin = request.args.get("fin", debut).strip()
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", debut) or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", fin) or debut > fin:
+        abort(400)
+    records = PayrollRecord.query.filter(PayrollRecord.periode >= debut, PayrollRecord.periode <= fin).join(Personnel).order_by(PayrollRecord.periode.desc(), Personnel.nom).all()
+    totals = {}
+    for currency in ("CDF", "USD"):
+        rows = [r for r in records if r.devise == currency]
+        totals[currency] = {
+            "base": sum(r.salaire_base for r in rows),
+            "avances": sum(r.avances for r in rows),
+            "deductions": sum(r.deductions for r in rows),
+            "net": sum(r.net_a_payer for r in rows),
+            "count": len(rows)
+        }
+    today = date.today()
+    contracts = StaffContract.query.filter_by(statut="Actif").join(Personnel).order_by(StaffContract.date_fin.asc()).all()
+    alerts = []
+    for contract in contracts:
+        if contract.date_fin and contract.date_fin < today:
+            alerts.append((contract, "Expiré", "danger"))
+        elif contract.date_fin and (contract.date_fin - today).days <= 45:
+            alerts.append((contract, "Expire bientôt", "warning"))
+    return page("Rapport de paie & contrats", """
+    <section class='panel'><p><a class='btn outline' href='/personnel'>Retour au personnel</a> <a class='btn primary' href='/paie/rapport.csv?debut={{ debut }}&fin={{ fin }}'>Exporter le rapport CSV</a></p>
+    <form method='get' class='form-grid'><label>Du mois<input name='debut' type='month' value='{{ debut }}' required></label><label>Au mois<input name='fin' type='month' value='{{ fin }}' required></label><button class='btn primary'>Filtrer</button></form></section>
+    <section class='stats'><article><small>Net total CDF</small><strong>{{ totals.CDF.net }} CDF</strong><em>{{ totals.CDF.count }} paie(s)</em></article><article><small>Net total USD</small><strong>{{ totals.USD.net }} USD</strong><em>{{ totals.USD.count }} paie(s)</em></article></section>
+    <section class='panel'><h2>Récapitulatif CDF</h2><p>Salaire de base : {{ totals.CDF.base }} CDF · Avances : {{ totals.CDF.avances }} CDF · Déductions : {{ totals.CDF.deductions }} CDF</p></section>
+    <section class='panel'><h2>Récapitulatif USD</h2><p>Salaire de base : {{ totals.USD.base }} USD · Avances : {{ totals.USD.avances }} USD · Déductions : {{ totals.USD.deductions }} USD</p></section>
+    <section class='panel'><h2>Détail des paies</h2><div class='table-wrap'><table><tr><th>Personnel</th><th>Période</th><th>Date paiement</th><th>Salaire</th><th>Avances</th><th>Déductions</th><th>Net</th><th>Devise</th></tr>
+    {% for r in records %}<tr><td>{{ r.personnel.nom }}</td><td>{{ r.periode }}</td><td>{{ r.date_paiement }}</td><td>{{ r.salaire_base }}</td><td>{{ r.avances }}</td><td>{{ r.deductions }}</td><td><b>{{ r.net_a_payer }}</b></td><td>{{ r.devise }}</td></tr>{% else %}<tr><td colspan='8'>Aucune paie sur cette période.</td></tr>{% endfor %}</table></div></section>
+    <section class='panel'><h2>Alertes sur les contrats actifs</h2><p class='muted'>Les contrats à durée indéterminée ne figurent pas dans les alertes d'échéance.</p><div class='table-wrap'><table><tr><th>Personnel</th><th>Type</th><th>Fin du contrat</th><th>État</th></tr>
+    {% for c, label, kind in alerts %}<tr><td>{{ c.personnel.nom }}</td><td>{{ c.type_contrat }}</td><td>{{ c.date_fin }}</td><td><span class='status {{ kind }}'>{{ label }}</span></td></tr>{% else %}<tr><td colspan='4'>Aucun contrat expiré ou proche de l'échéance.</td></tr>{% endfor %}</table></div></section>
+    """, debut=debut, fin=fin, records=records, totals=totals, alerts=alerts)
+
+
+@app.route("/paie/rapport.csv")
+@admin_only
+def payroll_report_csv():
+    debut = request.args.get("debut", date.today().strftime("%Y-%m")).strip()
+    fin = request.args.get("fin", debut).strip()
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", debut) or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", fin) or debut > fin:
+        abort(400)
+    records = PayrollRecord.query.filter(PayrollRecord.periode >= debut, PayrollRecord.periode <= fin).join(Personnel).order_by(PayrollRecord.periode, Personnel.nom).all()
+    output = StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Personnel", "Fonction", "Période", "Date paiement", "Salaire de base", "Avances", "Déductions", "Net à payer", "Devise", "Référence"])
+    for r in records:
+        writer.writerow([r.personnel.nom, r.personnel.fonction, r.periode, r.date_paiement.isoformat(), r.salaire_base, r.avances, r.deductions, r.net_a_payer, r.devise, r.reference or ""])
+    payload = BytesIO(("\ufeff" + output.getvalue()).encode("utf-8"))
+    payload.seek(0)
+    return send_file(payload, mimetype="text/csv; charset=utf-8", as_attachment=True,
+                     download_name="rapport-paie-{}-{}.csv".format(debut, fin))
 
 
 @app.route("/mon-salaire")
