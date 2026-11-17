@@ -2594,6 +2594,8 @@ def personnel():
                 db.session.add(StaffContract(personnel_id=p.id, type_contrat=type_contrat,
                     date_debut=debut, date_fin=fin, salaire_base=salaire, devise=devise))
                 db.session.commit()
+                journaliser("Création contrat personnel", "StaffContract", f"personnel={p.id}; type={type_contrat}; salaire={salaire} {devise}; fin={fin or 'indéterminée'}")
+                db.session.commit()
                 flash("Contrat enregistré.", "success")
         elif action == "advance":
             try:
@@ -2611,6 +2613,8 @@ def personnel():
             else:
                 db.session.add(StaffAdvance(personnel_id=p.id, montant=montant, devise=devise,
                     date_avance=date_avance, motif=motif))
+                db.session.commit()
+                journaliser("Enregistrement avance personnel", "StaffAdvance", f"personnel={p.id}; montant={montant} {devise}; date={date_avance}; motif={motif}")
                 db.session.commit()
                 flash("Avance enregistrée. Elle sera déduite lors de la paie.", "success")
         elif action == "payroll":
@@ -2642,6 +2646,8 @@ def personnel():
                 db.session.add(record)
                 for advance in avances_rows:
                     advance.statut = "Déduite"
+                db.session.commit()
+                journaliser("Validation paie personnel", "PayrollRecord", f"personnel={p.id}; période={periode}; net={net} {devise}; avances={avances}; déductions={deductions}")
                 db.session.commit()
                 flash("Paie enregistrée. Le bulletin de paie PDF est disponible.", "success")
         return redirect(url_for("personnel"))
