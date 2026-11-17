@@ -88,6 +88,7 @@ class Payment(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
     libelle = db.Column(db.String(140), nullable=False)
     montant = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
     statut = db.Column(db.String(20), default="En attente")
     date_paiement = db.Column(db.Date, nullable=True)
 
@@ -206,8 +207,8 @@ GRADES = """
 <section class='panel'><h2>Résultats et notes</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in notes %}<tr><td>{{ n.eleve.nom }}</td><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td><b>{{ n.note }}/20</b></td></tr>{% else %}<tr><td colspan='4'>Aucune note disponible.</td></tr>{% endfor %}</table></div></section>
 """
 FINANCES = """
-{% if admin %}<section class='panel'><h2>Enregistrer un paiement</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Libellé<input name='libelle' required placeholder='Frais scolaires'></label><label>Montant (FC)<input type='number' name='montant' min='0' required></label><label>Statut<select name='statut'><option>Payé</option><option>En attente</option></select></label><button class='btn primary'>Ajouter</button></form></section>{% endif %}
-<section class='panel'><h2>Suivi des paiements</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Libellé</th><th>Montant</th><th>Statut</th></tr>{% for p in paiements %}<tr><td>{{ p.eleve.nom }}</td><td>{{ p.libelle }}</td><td>{{ "{:,.0f}".format(p.montant).replace(",", " ") }} FC</td><td><span class='status {{ "paid" if p.statut=="Payé" else "pending" }}'>{{ p.statut }}</span></td></tr>{% else %}<tr><td colspan='4'>Aucun paiement.</td></tr>{% endfor %}</table></div></section>
+{% if admin %}<section class='panel'><h2>Enregistrer un paiement</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Libellé<input name='libelle' required placeholder='Frais scolaires'></label><label>Montant<input type='number' name='montant' min='0' step='1' required></label><label>Devise<select name='devise' required><option value='CDF'>CDF — Franc congolais</option><option value='USD'>USD — Dollar américain</option></select></label><label>Statut<select name='statut'><option>Payé</option><option>En attente</option></select></label><button class='btn primary'>Ajouter</button></form></section>{% endif %}
+<section class='panel'><h2>Suivi des paiements</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Libellé</th><th>Montant</th><th>Devise</th><th>Statut</th></tr>{% for p in paiements %}<tr><td>{{ p.eleve.nom }}</td><td>{{ p.libelle }}</td><td>{{ "{:,.0f}".format(p.montant).replace(",", " ") }}</td><td>{{ p.devise }}</td><td><span class='status {{ "paid" if p.statut=="Payé" else "pending" }}'>{{ p.statut }}</span></td></tr>{% else %}<tr><td colspan='4'>Aucun paiement.</td></tr>{% endfor %}</table></div></section>
 """
 MESSAGES = """
 <section class='panel'><h2>Nouveau message</h2><form method='post' class='message-form'><label>Destinataire<select name='destinataire'><option>Tous</option><option>Administration</option><option>Enseignants</option><option>Parents</option><option>Élèves</option></select></label><label>Objet<input name='sujet' required></label><label>Message<textarea name='contenu' rows='4' required></textarea></label><button class='btn primary'>Envoyer</button></form></section>
@@ -368,8 +369,10 @@ def finances():
     admin=current_user.role=="admin"
     if request.method=="POST":
         if not admin: abort(403)
+        devise=request.form.get("devise", "CDF").upper()
+        if devise not in ("CDF", "USD"): abort(400)
         p=Payment(student_id=int(request.form["student_id"]),libelle=request.form["libelle"].strip(),
-                  montant=int(request.form["montant"]),statut=request.form["statut"])
+                  montant=int(request.form["montant"]),devise=devise,statut=request.form["statut"])
         db.session.add(p); db.session.commit(); flash("Paiement enregistré.","success"); return redirect(url_for("finances"))
     query=Payment.query.join(Student)
     if not admin:
@@ -407,8 +410,10 @@ def horaire():
 
 
 @app.route("/presences", methods=["GET","POST"])
-@admin_only
+@login_required
 def presences():
+    if current_user.role not in ("admin", "enseignant"): abort(403)
+
     if current_user.role not in ("admin","enseignant"): abort(403)
     if request.method == "POST":
         record = Attendance(student_id=int(request.form["student_id"]),
@@ -473,7 +478,8 @@ with app.app_context():
     insp=inspect(db.engine)
     for table, columns in {
         "student": {"annee_inscription":"INTEGER","code_faculte":"VARCHAR(2)","code_filiere":"VARCHAR(2)"},
-        "grade": {"annee_academique":"VARCHAR(20) DEFAULT '2026-2027'","promotion":"VARCHAR(80) DEFAULT ''"}
+        "grade": {"annee_academique":"VARCHAR(20) DEFAULT '2026-2027'","promotion":"VARCHAR(80) DEFAULT ''"},
+        "payment": {"devise":"VARCHAR(3) NOT NULL DEFAULT 'CDF'"}
     }.items():
         existing={col["name"] for col in insp.get_columns(table)}
         for col, definition in columns.items():
