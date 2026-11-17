@@ -2572,6 +2572,7 @@ def resultats_annuels_page():
       <div class='table-wrap'><table><tr><th>Matière</th><th>Nombre de notes</th><th>Moyenne annuelle</th><th>Moyenne trimestrielle</th><th>Examens trimestriels</th><th>Examen final</th></tr>
       {% for row in lines %}<tr><td>{{ row.matiere }}</td><td>{{ row.nombre }}</td><td>{{ '%.2f'|format(row.moyenne) }}/20</td><td>{% if row.moyenne_trimestrielle is not none %}{{ '%.2f'|format(row.moyenne_trimestrielle) }}/20{% else %}—{% endif %}</td><td>{% if row.moyenne_examens_trimestriels is not none %}{{ '%.2f'|format(row.moyenne_examens_trimestriels) }}/20{% else %}—{% endif %}</td><td>{% if row.moyenne_examen_final is not none %}{{ '%.2f'|format(row.moyenne_examen_final) }}/20{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan='6'>Aucune note pour cette année académique.</td></tr>{% endfor %}</table></div>
       <p class='muted'>La moyenne annuelle est une moyenne arithmétique des notes enregistrées par matière. Les coefficients et règles de passage doivent être confirmés par la Direction avant validation officielle.</p>
+      <p><a class='btn primary' href='/bulletins/pdf?student_id={{ student.id }}'>Télécharger le bulletin PDF complet</a></p>
     </section>
     {% elif not admin and not parent %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève.</section>{% else %}<section class='panel'>Sélectionnez un élève pour consulter ses résultats annuels.</section>{% endif %}
     <section class='panel'><a class='btn outline' href='/bulletins'>Consulter les bulletins par période</a></section>
