@@ -2,6 +2,17 @@
 
 Application scolaire pour École Shemec à Lubumbashi, République démocratique du Congo. Le dépôt historique `Ecole-Labonte4` est conservé; le nom de produit affiché dans l'application est désormais **École Shemec**.
 
+## Organisation scolaire congolaise
+
+Les nouvelles inscriptions dans le portail Flask utilisent maintenant trois cycles :
+- **Maternelle** : 1re, 2e et 3e année maternelle.
+- **Primaire** : 1re à 6e année primaire.
+- **Secondaire** : 1re à 6e secondaire, avec une option/section sélectionnable.
+
+Le référentiel est centralisé dans `school_structure.py`. Les validations empêchent d'affecter une classe à un cycle incorrect. Les champs historiques `faculte` et `filiere` restent en base pour compatibilité; deux colonnes facultatives `niveau_scolaire` et `option_scolaire` sont ajoutées automatiquement au démarrage, sans effacer les anciens dossiers. Les nouveaux matricules sont générés par l'application à partir de l'année, du code du cycle et du code de classe.
+
+L'écran d'administration **Structure scolaire** présente les classes et les options disponibles. Les options affichées constituent un référentiel initial à faire confirmer par la Direction avant la rentrée.
+
 ## Technologies
 - Python 3.11+ et Flask
 - Flask-SQLAlchemy, Flask-Login
