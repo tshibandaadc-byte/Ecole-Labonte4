@@ -131,6 +131,16 @@ class CourseSlot(db.Model):
     cours = db.Column(db.String(140), nullable=False)
     enseignant = db.Column(db.String(140), default="")
 
+class TeacherAssignment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    cours = db.Column(db.String(140), nullable=False)
+    classe = db.Column(db.String(80), nullable=False)
+    annee_academique = db.Column(db.String(20), nullable=False)
+    volume_horaire = db.Column(db.Integer, nullable=False, default=0)
+    cree_le = db.Column(db.DateTime, default=datetime.utcnow)
+    enseignant = db.relationship("User", backref=db.backref("affectations", lazy=True))
+
 @login.user_loader
 def load_user(uid): return db.session.get(User, int(uid))
 
@@ -152,7 +162,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École La Bonté</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -181,7 +191,7 @@ DASH_ADMIN = """
 DASH_TEACHER = """
 <section class='hero'><div><small>ESPACE ENSEIGNANT</small><h2>Bonjour, {{ current_user.nom }}</h2><p>Gérez les notes et consultez les horaires de cours.</p></div><span>✦</span></section>
 <div class='quick'><a href='/notes'>▤ <b>Saisir les notes</b><small>Évaluer les élèves</small></a><a href='/horaire'>▦ <b>Emploi du temps</b><small>Voir les horaires</small></a><a href='/messages'>✉ <b>Messages</b><small>Communiquer avec l'école</small></a></div>
-<section class='panel'><h2>Vos outils pédagogiques</h2><p>Utilisez les notes pour enregistrer les résultats des élèves et l'emploi du temps pour consulter les cours planifiés.</p></section>
+<section class='panel'><div class='panel-head'><div><h2>Mes cours affectés</h2><p>{{ affectations|length }} affectation(s)</p></div></div><div class='table-wrap'><table><tr><th>Cours</th><th>Classe</th><th>Année</th><th>Volume (h)</th></tr>{% for a in affectations %}<tr><td>{{ a.cours }}</td><td>{{ a.classe }}</td><td>{{ a.annee_academique }}</td><td>{{ a.volume_horaire }}</td></tr>{% else %}<tr><td colspan='4'>Aucun cours ne vous a encore été affecté. Contactez l'administration.</td></tr>{% endfor %}</table></div></section>
 """
 DASH_USER = """
 <section class='hero'><div><small>MON ESPACE SCOLAIRE</small><h2>Bienvenue, {{ current_user.nom }}</h2><p>Retrouvez vos informations et vos résultats.</p></div><span>✦</span></section>
@@ -262,7 +272,7 @@ ACCOUNTS = """
 @login_required
 def dashboard():
     if current_user.role == "enseignant":
-        return page("Espace enseignant", DASH_TEACHER)
+        return page("Espace enseignant", DASH_TEACHER, affectations=TeacherAssignment.query.filter_by(teacher_id=current_user.id).order_by(TeacherAssignment.annee_academique.desc(), TeacherAssignment.classe).all())
     if current_user.role == "admin":
         eleves_avec_notes = [s for s in Student.query.all() if s.notes]
         seuil = float(os.getenv("PASS_MARK", "10"))
@@ -523,6 +533,50 @@ def comptes():
     return page("Comptes utilisateurs",ACCOUNTS,users=User.query.order_by(User.nom).all(),
                 students=Student.query.order_by(Student.nom).all())
 
+
+
+@app.route("/affectations", methods=["GET", "POST"])
+@admin_only
+def affectations():
+    if request.method == "POST":
+        try:
+            teacher_id = int(request.form.get("teacher_id", ""))
+            volume = int(request.form.get("volume_horaire") or 0)
+        except (ValueError, TypeError):
+            flash("Sélectionnez un enseignant et un volume horaire valide.", "error")
+            return redirect(url_for("affectations"))
+        teacher = db.session.get(User, teacher_id)
+        cours = request.form.get("cours", "").strip()
+        classe = request.form.get("classe", "").strip()
+        annee = request.form.get("annee_academique", "").strip()
+        if not teacher or teacher.role != "enseignant" or not all([cours, classe, annee]) or volume < 0:
+            flash("Vérifiez l'enseignant, le cours, la classe, l'année et le volume horaire.", "error")
+        elif TeacherAssignment.query.filter_by(teacher_id=teacher.id, cours=cours, classe=classe, annee_academique=annee).first():
+            flash("Cette affectation existe déjà pour cet enseignant.", "error")
+        else:
+            db.session.add(TeacherAssignment(teacher_id=teacher.id, cours=cours, classe=classe,
+                annee_academique=annee, volume_horaire=volume))
+            db.session.commit()
+            flash("Cours affecté à l'enseignant avec succès.", "success")
+        return redirect(url_for("affectations"))
+    template = """
+    <section class='panel'><h2>Affecter un cours</h2>
+    <form method='post' class='form-grid'>
+      <label>Enseignant *<select name='teacher_id' required>{% for t in teachers %}<option value='{{ t.id }}'>{{ t.nom }} · {{ t.email }}</option>{% endfor %}</select></label>
+      <label>Nom du cours *<input name='cours' required placeholder='Mathématiques'></label>
+      <label>Classe *<input name='classe' required placeholder='G1 Informatique'></label>
+      <label>Année académique *<input name='annee_academique' required value='2026-2027'></label>
+      <label>Volume horaire (heures)<input type='number' min='0' name='volume_horaire' value='0'></label>
+      <button class='btn primary' {% if not teachers %}disabled{% endif %}>Enregistrer l'affectation</button>
+    </form>{% if not teachers %}<p>Créez d'abord un compte avec le rôle « Enseignant » dans Comptes utilisateurs.</p>{% endif %}</section>
+    <section class='panel'><h2>Affectations enregistrées</h2><div class='table-wrap'><table>
+    <tr><th>Enseignant</th><th>Cours</th><th>Classe</th><th>Année</th><th>Volume (h)</th></tr>
+    {% for a in assignments %}<tr><td>{{ a.enseignant.nom }}</td><td>{{ a.cours }}</td><td>{{ a.classe }}</td><td>{{ a.annee_academique }}</td><td>{{ a.volume_horaire }}</td></tr>
+    {% else %}<tr><td colspan='5'>Aucune affectation enregistrée.</td></tr>{% endfor %}</table></div></section>
+    """
+    return page("Affectations enseignants", template,
+        teachers=User.query.filter_by(role="enseignant").order_by(User.nom).all(),
+        assignments=TeacherAssignment.query.order_by(TeacherAssignment.annee_academique.desc(), TeacherAssignment.classe).all())
 
 
 @app.route("/facultes", methods=["GET", "POST"])
