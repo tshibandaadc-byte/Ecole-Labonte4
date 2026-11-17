@@ -2628,7 +2628,7 @@ def personnel():
             contrats = StaffContract.query.filter_by(personnel_id=personnel_id, devise=devise, statut="Actif").order_by(StaffContract.date_debut.desc()).all() if p else []
             if not salaire and contrats:
                 salaire = contrats[0].salaire_base
-            avances_rows = StaffAdvance.query.filter_by(personnel_id=personnel_id, devise=devise, statut="À retenir").all() if p else []
+            avances_rows = StaffAdvance.query.filter(StaffAdvance.personnel_id == personnel_id, StaffAdvance.devise == devise, StaffAdvance.statut == "À retenir", StaffAdvance.date_avance <= date_paiement).order_by(StaffAdvance.date_avance.asc(), StaffAdvance.id.asc()).all() if p else []
             avances = sum(x.montant for x in avances_rows)
             net = salaire - avances - deductions
             if not p or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", periode) or salaire <= 0 or deductions < 0 or devise not in ("CDF", "USD") or net < 0:
