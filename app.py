@@ -1427,11 +1427,11 @@ def admission_public():
         program = db.session.get(ProgramCatalog, program_id)
         if not all([nom, classe, promotion, year, photo, photo.filename, faculty, program]) or program.faculty_id != faculty.id or len(year) > 20:
             flash("Vérifiez les champs obligatoires et la faculté/filière choisies.", "error")
-            return page("Demande d'admission", ADMISSION_FORM, faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
+            return page("Demande d'admission", ADMISSION_FORM, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
         ext = photo.filename.rsplit(".", 1)[-1].lower()
         if ext not in ALLOWED:
             flash("Format photo accepté : JPG, PNG ou WEBP.", "error")
-            return page("Demande d'admission", ADMISSION_FORM, faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
+            return page("Demande d'admission", ADMISSION_FORM, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
         filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
         photo.save(UPLOADS / filename)
         application = AdmissionApplication(nom=nom, photo=filename, faculty_id=faculty.id,
@@ -1442,7 +1442,7 @@ def admission_public():
         flash("Demande reçue. L'administration étudiera votre dossier.", "success")
         return redirect(url_for("admission_public"))
     return page("Demande d'admission", ADMISSION_FORM,
-                faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
+                faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
 
 
 @app.route("/admissions", methods=["GET", "POST"])
@@ -1826,7 +1826,7 @@ def facultes():
     </section>
     """
     return page("Facultés & filières", template,
-        faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
+        faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
 
 @app.route("/historique", methods=["GET","POST"])
 @admin_only
