@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 
 
 def register_parent_portal(app, db, Student, Grade, Attendance, SchoolFee,
-                           FeePayment, parent_children, page):
+                           FeePayment, AcademicYear, parent_children, page):
     @app.route("/espace-parent")
     @login_required
     def espace_parent():
@@ -23,6 +23,8 @@ def register_parent_portal(app, db, Student, Grade, Attendance, SchoolFee,
         elif len(children) == 1:
             selected = children[0]
 
+        active_year = AcademicYear.query.filter_by(active=True).first()
+        school_year = active_year.label if active_year else None
         cards = []
         for child in children:
             grades = Grade.query.filter_by(student_id=child.id).order_by(
@@ -33,7 +35,10 @@ def register_parent_portal(app, db, Student, Grade, Attendance, SchoolFee,
                 student_id=child.id, statut="Absent"
             ).order_by(Attendance.jour.desc()).limit(5).all()
             unpaid = []
-            fees = SchoolFee.query.filter_by(classe=child.classe).all()
+            fee_query = SchoolFee.query.filter_by(classe=child.classe)
+            if school_year:
+                fee_query = fee_query.filter_by(annee_academique=school_year)
+            fees = fee_query.all()
             for fee in fees:
                 paid = db.session.query(db.func.coalesce(db.func.sum(FeePayment.montant), 0)).filter_by(
                     fee_id=fee.id, student_id=child.id
@@ -79,4 +84,4 @@ def register_parent_portal(app, db, Student, Grade, Attendance, SchoolFee,
         if len(children) == 1 and selected_card is None:
             selected_card = cards[0]
         return page("Espace Parent", template, children=children,
-                    selected=selected, selected_card=selected_card)
+                    selected=selected, selected_card=selected_card, school_year=school_year)
