@@ -1,6 +1,6 @@
 # ÉCOLE SHEMEC — application Flask PWA
 
-Cette version Flask est ajoutée à la branche `shemec-flask-pwa` du dépôt `Ecole-Labonte4` afin de préserver les fichiers et prototypes déjà présents sur `main`.
+Cette version Flask/PWA est intégrée au dépôt `Ecole-Labonte4` dans le compte GitHub `tshibandaadc-byte`. Les anciens prototypes et backends restent conservés.
 
 ## Fonctionnalités
 - Connexion par rôle : administration, enseignant, parent, élève.
@@ -18,7 +18,7 @@ Cette version Flask est ajoutée à la branche `shemec-flask-pwa` du dépôt `Ec
 
 ```powershell
 py -m venv venv
-.\\venv\\Scripts\\Activate.ps1
+.\venv\Scripts\Activate.ps1
 py -m pip install -r requirements.txt
 py app.py
 ```
@@ -39,4 +39,4 @@ Si PowerShell bloque l'activation : `Set-ExecutionPolicy -Scope Process -Executi
 - PC : utiliser l'icône Installer de Chrome ou Edge.
 
 ## Points à finaliser avant usage réel
-Cette branche est une première version fonctionnelle à valider. Avant de saisir des données personnelles réelles, ajouter une protection CSRF complète, des journaux d'audit, une politique de sauvegarde, un stockage persistant externe pour les photos, des procédures de récupération de mot de passe et une validation juridique de la gestion des données scolaires. Les rôles et restrictions d'accès sont à tester avec des comptes de chaque catégorie. Le tableau de bord n'affiche pas encore le taux de réussite, qui nécessite la définition officielle du seuil et de la période de calcul par l'école.
+Cette branche est une première version fonctionnelle à valider. Avant de saisir des données personnelles réelles, ajouter une protection CSRF complète, des journaux d'audit, une politique de sauvegarde, un stockage persistant externe pour les photos, des procédures de récupération de mot de passe et une validation juridique de la gestion des données scolaires. Les rôles et restrictions d'accès sont à tester avec des comptes de chaque catégorie. Le taux de réussite utilise actuellement un seuil provisoire de 10/20 et toutes les notes enregistrées. L'école doit confirmer le seuil officiel et la période de calcul avant utilisation administrative.
