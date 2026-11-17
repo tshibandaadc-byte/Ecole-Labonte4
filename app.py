@@ -2325,9 +2325,15 @@ with app.app_context():
                 with db.engine.begin() as conn:
                     conn.exec_driver_sql("ALTER TABLE " + table + " ADD COLUMN " + col + " " + definition)
     if not User.query.filter_by(email="admin@shemec.cd").first():
+        initial_admin_password = os.getenv("ADMIN_PASSWORD")
+        if not initial_admin_password or len(initial_admin_password) < 12:
+            raise RuntimeError(
+                "Définissez ADMIN_PASSWORD avec au moins 12 caractères avant le premier démarrage."
+            )
         admin=User(nom="Administrateur Shemec",email="admin@shemec.cd",role="admin")
-        admin.set_password(os.getenv("ADMIN_PASSWORD","Shemec2026!"))
-        db.session.add(admin); db.session.commit()
+        admin.set_password(initial_admin_password)
+        db.session.add(admin)
+        db.session.commit()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=int(os.getenv("PORT",5000)),debug=os.getenv("FLASK_DEBUG")=="1")
