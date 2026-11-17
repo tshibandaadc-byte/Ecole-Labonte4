@@ -21,7 +21,7 @@ core.BASE = core.BASE.replace(
 )
 
 register_progression_routes(
-    app, db, Student, Grade, Enrollment, StudentHistory, AcademicYear, page
+    app, db, Student, Grade, Enrollment, StudentHistory, AcademicYear, page, journaliser
 )
 register_class_routes(
     app, db, Student, User, TeacherAssignment, AcademicYear, page
