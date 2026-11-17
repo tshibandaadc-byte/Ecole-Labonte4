@@ -11,6 +11,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from markupsafe import escape
+from school_structure import NIVEAUX_SCOLAIRES, OPTIONS_SECONDAIRE, classe_valide, option_valide
 
 ROOT = Path(__file__).resolve().parent
 UPLOADS = ROOT / "static" / "uploads"
@@ -59,6 +60,8 @@ class Student(db.Model):
     filiere = db.Column(db.String(120), nullable=False)
     promotion = db.Column(db.String(80), nullable=False)
     classe = db.Column(db.String(80), nullable=False)
+    niveau_scolaire = db.Column(db.String(30), nullable=True)
+    option_scolaire = db.Column(db.String(80), nullable=True)
     annee_inscription = db.Column(db.Integer, nullable=True)
     code_faculte = db.Column(db.String(2), nullable=True)
     code_filiere = db.Column(db.String(2), nullable=True)
@@ -427,7 +430,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École Shemec</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE SHEMEC<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a><a href='/personnel'>♙ Personnel & paie</a><a href='/annees-scolaires'>▦ Années & trimestres</a><a href='/bibliotheque'>▤ Bibliothèque</a><a href='/transport'>▣ Transport</a><a href='/cantine'>♨ Cantine</a><a href='/comptabilite'>◈ Comptabilité</a><a href='/journal'>▤ Journal d’audit</a>{% endif %}{% if current_user.role in ['enseignant','admin'] %}<a href='/mon-salaire'>◈ Mon salaire</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/structure-scolaire'>▦ Structure scolaire</a><a href='/facultes'>▦ Ancien catalogue universitaire</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a><a href='/personnel'>♙ Personnel & paie</a><a href='/annees-scolaires'>▦ Années & trimestres</a><a href='/bibliotheque'>▤ Bibliothèque</a><a href='/transport'>▣ Transport</a><a href='/cantine'>♨ Cantine</a><a href='/comptabilite'>◈ Comptabilité</a><a href='/journal'>▤ Journal d’audit</a>{% endif %}{% if current_user.role in ['enseignant','admin'] %}<a href='/mon-salaire'>◈ Mon salaire</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/frais'>▣ Frais par classe</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -470,6 +473,20 @@ PUBLIC_HOME = """
 def accueil():
     return page('Accueil', PUBLIC_HOME)
 
+@app.route("/structure-scolaire")
+@admin_only
+def structure_scolaire():
+    return page("Structure scolaire", """
+    <section class='hero'><div><small>ÉCOLE SHEMEC · LUBUMBASHI</small><h2>Organisation des cycles scolaires</h2><p>Référentiel des classes utilisé pour les nouvelles inscriptions.</p></div><span>🇨🇩</span></section>
+    {% for niveau, classes in niveaux.items() %}
+    <section class='panel'><h2>{{ niveau }}</h2><div class='service-tags'>{% for classe in classes %}<span>{{ classe }}</span>{% endfor %}</div>
+    {% if niveau == 'Secondaire' %}<h3>Options / sections</h3><div class='service-tags'>{% for option in options %}<span>{{ option }}</span>{% endfor %}</div>{% endif %}</section>
+    {% endfor %}
+    <section class='panel'><p>Les anciennes colonnes Faculté et Filière sont conservées pour préserver les dossiers historiques. Les nouvelles inscriptions utilisent Niveau, Classe et Option.</p></section>
+    """, niveaux=NIVEAUX_SCOLAIRES, options=OPTIONS_SECONDAIRE)
+
+
+
 LOGIN = """
 <div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><small class='kicker'>BIENVENUE À</small><h1>École Shemec</h1><p>Votre espace scolaire numérique.</p>
 <label>Matricule ou adresse e-mail<input name='identifier' required autocomplete='username'></label>
@@ -509,34 +526,37 @@ STUDENT_FORM = """
 <label>Nom complet *<input name='nom' required value='{{ s.nom if s else "" }}'></label>
 {% if s %}<label>Matricule officiel<input value='{{ s.matricule }}' readonly></label>{% else %}<label>Matricule officiel<input value='Attribué automatiquement après validation' readonly></label>{% endif %}
 <label>Année d'inscription *<input type='number' name='annee_inscription' required value='{{ s.annee_inscription if s else "" }}'></label>
-<label>Code faculté *<input name='code_faculte' pattern='[0-9]{2}' maxlength='2' required value='{{ s.code_faculte if s else "" }}'></label>
-<label>Code filière *<input name='code_filiere' pattern='[0-9]{2}' maxlength='2' required value='{{ s.code_filiere if s else "" }}'></label>
-{% if faculties %}
-<label>Faculté du catalogue *<select name='faculty_catalog_id' id='faculty_catalog_id' required><option value=''>Choisir une faculté</option>{% for f in faculties %}<option value='{{ f.id }}' data-code='{{ f.code }}' {% if s and s.faculte==f.nom %}selected{% endif %}>{{ f.code }} · {{ f.nom }}</option>{% endfor %}</select></label>
-<label>Filière du catalogue *<select name='program_catalog_id' id='program_catalog_id' required><option value=''>Choisir une filière</option>{% for f in faculties %}{% for p in f.filieres %}<option value='{{ p.id }}' data-faculty='{{ f.id }}' data-code='{{ p.code }}' {% if s and s.filiere==p.nom and s.faculte==f.nom %}selected{% endif %}>{{ p.code }} · {{ p.nom }}</option>{% endfor %}{% endfor %}</select></label>
+<label>Niveau scolaire *<select name='niveau_scolaire' id='niveau_scolaire' required><option value=''>Choisir le niveau</option>{% for niveau, classes in niveaux.items() %}<option value='{{ niveau }}' {% if s and s.niveau_scolaire==niveau %}selected{% endif %}>{{ niveau }}</option>{% endfor %}</select></label>
+<label>Classe *<select name='classe' id='classe_scolaire' required><option value=''>Choisir la classe</option>{% for niveau, classes in niveaux.items() %}{% for classe in classes %}<option value='{{ classe }}' data-niveau='{{ niveau }}' {% if s and s.classe==classe %}selected{% endif %}>{{ classe }}</option>{% endfor %}{% endfor %}</select></label>
+<label>Option / section (secondaire)<select name='option_scolaire' id='option_scolaire'><option value='Aucune'>Aucune / non applicable</option>{% for option in options_secondaire %}<option value='{{ option }}' {% if s and s.option_scolaire==option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></label>
+<input type='hidden' name='code_faculte' id='code_faculte'><input type='hidden' name='code_filiere' id='code_filiere'>
+<input type='hidden' name='faculte' id='faculte_legacy'><input type='hidden' name='filiere' id='filiere_legacy'>
 <script>
 (function(){
- const faculty=document.getElementById('faculty_catalog_id');
- const program=document.getElementById('program_catalog_id');
- if(!faculty||!program)return;
- const options=Array.from(program.options);
- function filterPrograms(){
-   const selected=faculty.value, previous=program.value;
-   options.forEach(o=>{if(o.value)o.hidden=(o.dataset.faculty!==selected);});
-   if(program.selectedOptions.length && program.selectedOptions[0].hidden)program.value='';
-   if(!program.value && previous){const match=options.find(o=>o.value===previous&&o.dataset.faculty===selected);if(match)program.value=previous;}
+ const level=document.getElementById('niveau_scolaire'), grade=document.getElementById('classe_scolaire'), option=document.getElementById('option_scolaire');
+ const cf=document.getElementById('code_faculte'), cfi=document.getElementById('code_filiere');
+ const oldFaculty=document.getElementById('faculte_legacy'), oldProgram=document.getElementById('filiere_legacy');
+ const options=Array.from(grade.options);
+ const levelCodes={'Maternelle':'01','Primaire':'02','Secondaire':'03'};
+ const classCodes={'1re année maternelle':'01','2e année maternelle':'02','3e année maternelle':'03',
+ '1re année primaire':'01','2e année primaire':'02','3e année primaire':'03','4e année primaire':'04','5e année primaire':'05','6e année primaire':'06',
+ '1re secondaire':'01','2e secondaire':'02','3e secondaire':'03','4e secondaire':'04','5e secondaire':'05','6e secondaire':'06'};
+ function refresh(){
+   options.forEach(o=>{if(o.value)o.hidden=o.dataset.niveau!==level.value;});
+   if(grade.selectedOptions.length && grade.selectedOptions[0].hidden)grade.value='';
+   cf.value=levelCodes[level.value]||''; cfi.value=classCodes[grade.value]||'';
+   oldFaculty.value=level.value||'';
+   oldProgram.value=(level.value==='Secondaire' && option.value!=='Aucune')?option.value:'Général';
+   option.disabled=level.value!=='Secondaire';
+   if(level.value!=='Secondaire')option.value='Aucune';
  }
- faculty.addEventListener('change',filterPrograms);filterPrograms();
+ level.addEventListener('change',refresh); grade.addEventListener('change',refresh); option.addEventListener('change',refresh); refresh();
 })();
 </script>
-{% else %}
-<label>Faculté *<input name='faculte' required value='{{ s.faculte if s else "" }}'></label>
-<label>Filière *<input name='filiere' required value='{{ s.filiere if s else "" }}'></label>
-{% endif %}
 <label>Promotion *<input name='promotion' required placeholder='Promotion 2026 / G1 / L1' value='{{ s.promotion if s else "" }}'></label>
 <label>Nombre de cours<input type='number' min='0' name='nombre_cours' value='{{ s.nombre_cours if s else 0 }}'></label>
 <label>Nombre de crédits<input type='number' min='0' name='credits' value='{{ s.credits if s else 0 }}'></label>
-<label>Classe *<input name='classe' required value='{{ s.classe if s else "" }}'></label>
+
 <div class='actions'><a class='btn outline' href='/eleves'>Annuler</a><button class='btn primary'>Enregistrer</button></div></form></section>
 """
 DETAIL = """
@@ -763,22 +783,27 @@ def eleves():
 @admin_only
 def eleve_nouveau():
     if request.method == "POST":
+        niveau_scolaire=request.form.get("niveau_scolaire","").strip()
+        classe_scolaire=request.form.get("classe","").strip()
+        option_scolaire=request.form.get("option_scolaire","Aucune").strip() or "Aucune"
+        if niveau_scolaire and (not classe_valide(niveau_scolaire, classe_scolaire) or not option_valide(niveau_scolaire, option_scolaire)):
+            abort(400)
         photo = request.files.get("photo")
         if not photo or not photo.filename:
             flash("La photo de profil est obligatoire.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
         ext = photo.filename.rsplit(".",1)[-1].lower()
         if ext not in ALLOWED:
             flash("Format accepté : JPG, PNG ou WEBP.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
         filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
         photo.save(UPLOADS / filename)
-        matricule=request.form.get("matricule","").strip()
         annee=int(request.form["annee_inscription"]); cf=request.form["code_faculte"].strip(); cfi=request.form["code_filiere"].strip()
+        matricule=generer_matricule(annee,cf,cfi)
         if not matricule_valide(matricule) or Student.query.filter_by(matricule=matricule).first() or matricule.split("-")[:3] != [str(annee),cf,cfi]:
             (UPLOADS / filename).unlink(missing_ok=True)
             flash("Matricule invalide, déjà utilisé ou incohérent avec l'année, la faculté et la filière.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
         faculty_id=request.form.get("faculty_catalog_id", "").strip()
         program_id=request.form.get("program_catalog_id", "").strip()
         if faculty_id or program_id:
@@ -787,14 +812,15 @@ def eleve_nouveau():
             if not faculty or not program or program.faculty_id != faculty.id or [faculty.code, program.code] != [cf, cfi]:
                 (UPLOADS / filename).unlink(missing_ok=True)
                 flash("La faculté, la filière et leurs codes doivent correspondre au matricule.", "error")
-                return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+                return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
             faculte_name, filiere_name = faculty.nom, program.nom
         else:
             faculte_name=request.form.get("faculte","").strip()
             filiere_name=request.form.get("filiere","").strip()
         s = Student(matricule=matricule, annee_inscription=annee, code_faculte=cf, code_filiere=cfi, nom=request.form["nom"].strip(), photo=filename,
             faculte=faculte_name, filiere=filiere_name,
-            promotion=request.form["promotion"].strip(), classe=request.form["classe"].strip(),
+            promotion=request.form["promotion"].strip(), classe=classe_scolaire,
+            niveau_scolaire=niveau_scolaire or None, option_scolaire=option_scolaire if niveau_scolaire == "Secondaire" else None,
             nombre_cours=int(request.form.get("nombre_cours") or 0), credits=int(request.form.get("credits") or 0))
         db.session.add(s); db.session.flush()
         db.session.add(Enrollment(student_id=s.id, annee_academique=str(annee) + "-" + str(annee + 1),
@@ -802,7 +828,7 @@ def eleve_nouveau():
         db.session.commit()
         flash("Inscription enregistrée. Matricule attribué : " + s.matricule, "success")
         return redirect(url_for("eleve_detail", sid=s.id))
-    return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+    return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
 
 @app.route("/eleves/<int:sid>")
 @admin_only
@@ -874,7 +900,7 @@ def eleve_modifier(sid):
             program=db.session.get(ProgramCatalog, int(program_id)) if program_id.isdigit() else None
             if not faculty or not program or program.faculty_id != faculty.id or [faculty.code, program.code] != [s.code_faculte, s.code_filiere]:
                 flash("La faculté et la filière choisies doivent correspondre aux codes du matricule. Corrigez le matricule auprès de la Direction si nécessaire.", "error")
-                return page("Modifier l'élève", STUDENT_FORM, s=s, matricule=s.matricule, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+                return page("Modifier l'élève", STUDENT_FORM, s=s, matricule=s.matricule, faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
             s.faculte, s.filiere = faculty.nom, program.nom
         else:
             s.faculte=request.form.get("faculte",s.faculte).strip()
@@ -883,11 +909,11 @@ def eleve_modifier(sid):
         photo=request.files.get("photo")
         if photo and photo.filename:
             ext=photo.filename.rsplit(".",1)[-1].lower()
-            if ext not in ALLOWED: flash("Format photo invalide.","error"); return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            if ext not in ALLOWED: flash("Format photo invalide.","error"); return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
             filename=datetime.utcnow().strftime("%Y%m%d%H%M%S%f")+"_"+secure_filename(photo.filename)
             photo.save(UPLOADS/filename); s.photo=filename
         db.session.commit(); flash("Dossier modifié.","success"); return redirect(url_for("eleve_detail",sid=s.id))
-    return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+    return page("Modifier l'élève",STUDENT_FORM,s=s,matricule=s.matricule,faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
 
 @app.route("/eleves/<int:sid>/supprimer", methods=["POST"])
 @admin_only
@@ -1401,11 +1427,11 @@ def admission_public():
         program = db.session.get(ProgramCatalog, program_id)
         if not all([nom, classe, promotion, year, photo, photo.filename, faculty, program]) or program.faculty_id != faculty.id or len(year) > 20:
             flash("Vérifiez les champs obligatoires et la faculté/filière choisies.", "error")
-            return page("Demande d'admission", ADMISSION_FORM, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            return page("Demande d'admission", ADMISSION_FORM, faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
         ext = photo.filename.rsplit(".", 1)[-1].lower()
         if ext not in ALLOWED:
             flash("Format photo accepté : JPG, PNG ou WEBP.", "error")
-            return page("Demande d'admission", ADMISSION_FORM, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+            return page("Demande d'admission", ADMISSION_FORM, faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
         filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
         photo.save(UPLOADS / filename)
         application = AdmissionApplication(nom=nom, photo=filename, faculty_id=faculty.id,
@@ -1416,7 +1442,7 @@ def admission_public():
         flash("Demande reçue. L'administration étudiera votre dossier.", "success")
         return redirect(url_for("admission_public"))
     return page("Demande d'admission", ADMISSION_FORM,
-                faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+                faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
 
 
 @app.route("/admissions", methods=["GET", "POST"])
@@ -1800,7 +1826,7 @@ def facultes():
     </section>
     """
     return page("Facultés & filières", template,
-        faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+        faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
 
 @app.route("/historique", methods=["GET","POST"])
 @admin_only
@@ -2315,7 +2341,7 @@ with app.app_context():
     from sqlalchemy import inspect
     insp=inspect(db.engine)
     for table, columns in {
-        "student": {"annee_inscription":"INTEGER","code_faculte":"VARCHAR(2)","code_filiere":"VARCHAR(2)"},
+        "student": {"annee_inscription":"INTEGER","code_faculte":"VARCHAR(2)","code_filiere":"VARCHAR(2)","niveau_scolaire":"VARCHAR(30)","option_scolaire":"VARCHAR(80)"},
         "grade": {"annee_academique":"VARCHAR(20) DEFAULT '2026-2027'","promotion":"VARCHAR(80) DEFAULT ''"},
         "payment": {"devise":"VARCHAR(3) NOT NULL DEFAULT 'CDF'"}
     }.items():
