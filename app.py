@@ -70,6 +70,19 @@ class Grade(db.Model):
     annee_academique = db.Column(db.String(20), default="2026-2027")
     promotion = db.Column(db.String(80), default="")
 
+class StudentHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    annee_academique = db.Column(db.String(20), nullable=False)
+    promotion = db.Column(db.String(80), nullable=False)
+    faculte = db.Column(db.String(120), nullable=False)
+    filiere = db.Column(db.String(120), nullable=False)
+    cours = db.Column(db.String(140), nullable=False)
+    credits = db.Column(db.Integer, default=0)
+    note = db.Column(db.Float, nullable=True)
+    decision = db.Column(db.String(80), default="")
+    student = db.relationship("Student", backref=db.backref("historique", cascade="all,delete-orphan"))
+
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
@@ -124,7 +137,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École Shemec</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE SHEMEC<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a>{% if current_user.role=='admin' %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -396,6 +409,7 @@ def horaire():
 @app.route("/presences", methods=["GET","POST"])
 @admin_only
 def presences():
+    if current_user.role not in ("admin","enseignant"): abort(403)
     if request.method == "POST":
         record = Attendance(student_id=int(request.form["student_id"]),
             jour=datetime.strptime(request.form["jour"], "%Y-%m-%d").date(),
@@ -412,6 +426,20 @@ def presences():
     <section class='panel'><h2>Registre des présences</h2><div class='table-wrap'><table><tr><th>Date</th><th>Élève</th><th>Matricule</th><th>Statut</th><th>Motif</th></tr>{% for r in records %}<tr><td>{{ r.jour.strftime('%d/%m/%Y') }}</td><td>{{ r.eleve.nom }}</td><td>{{ r.eleve.matricule }}</td><td>{{ r.statut }}</td><td>{{ r.motif }}</td></tr>{% else %}<tr><td colspan='5'>Aucun relevé.</td></tr>{% endfor %}</table></div></section>
     """
     return page("Présences & absences", template, students=students, records=records, today=date.today().isoformat())
+
+@app.route("/assistant", methods=["GET","POST"])
+@login_required
+def assistant():
+    template="""<section class='panel'><h2>Assistant scolaire — recherche dans les dossiers</h2><p>Recherchez un matricule ou un nom. L'assistant interroge la base de données selon vos autorisations.</p><form method='post' class='search'><input name='q' placeholder='Matricule officiel ou nom' required><button class='btn primary'>Rechercher</button></form>{% if s %}<div class='profile'><img src='/static/uploads/{{ s.photo }}'><div><b>{{ s.nom }}</b><p>Matricule : {{ s.matricule }}</p><p>{{ s.faculte }} · {{ s.filiere }} · {{ s.promotion }}</p><b>Moyenne : {{ s.moyenne }}/20</b></div></div><h3>Parcours annuel</h3><div class='table-wrap'><table><tr><th>Année</th><th>Promotion</th><th>Faculté / Filière</th><th>Cours</th><th>Crédits</th><th>Note</th></tr>{% for h in s.historique %}<tr><td>{{ h.annee_academique }}</td><td>{{ h.promotion }}</td><td>{{ h.faculte }} / {{ h.filiere }}</td><td>{{ h.cours }}</td><td>{{ h.credits }}</td><td>{{ h.note if h.note is not none else h.decision }}</td></tr>{% else %}<tr><td colspan='6'>Aucun historique annuel archivé pour ce dossier.</td></tr>{% endfor %}</table></div>{% elif q %}<p>Aucun dossier correspondant.</p>{% endif %}</section>"""
+    q=request.form.get("q","").strip() if request.method=="POST" else ""
+    student=None
+    if q:
+        if current_user.role in ("admin","enseignant"):
+            student=Student.query.filter(db.or_(Student.matricule==q,Student.nom.ilike("%"+q+"%"))).first()
+        elif current_user.student_id:
+            own=db.session.get(Student,current_user.student_id)
+            if own and (q==own.matricule or q.lower() in own.nom.lower()): student=own
+    return page("Assistant scolaire",template,s=student,q=q)
 
 @app.route("/comptes", methods=["GET","POST"])
 @admin_only
