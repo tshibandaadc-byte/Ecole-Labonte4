@@ -114,6 +114,18 @@ def register_teacher_followup(app, db, User, page):
             attendance_query = attendance_query.filter_by(teacher_id=teacher_id)
             activity_query = activity_query.filter_by(teacher_id=teacher_id)
         attendance = attendance_query.order_by(TeacherAttendance.jour.desc()).limit(150).all()
+        attendance_stats = {
+            "Présent": attendance_query.filter_by(statut="Présent").count(),
+            "Absent": attendance_query.filter_by(statut="Absent").count(),
+            "Retard": attendance_query.filter_by(statut="Retard").count(),
+            "Congé": attendance_query.filter_by(statut="Congé").count()
+        }
+        activity_stats = {
+            "total": activity_query.count(),
+            "realisees": activity_query.filter_by(statut="Réalisée").count(),
+            "a_suivre": activity_query.filter_by(statut="À suivre").count()
+        }
+        attendance = attendance_query.order_by(TeacherAttendance.jour.desc()).limit(150).all()
         activities = activity_query.order_by(TeacherActivity.jour.desc(), TeacherActivity.id.desc()).limit(150).all()
 
         template = """
@@ -123,6 +135,13 @@ def register_teacher_followup(app, db, User, page):
           <select name='teacher_id'><option value=''>Tous les enseignants</option>
           {% for t in teachers %}<option value='{{ t.id }}' {% if selected and selected.id == t.id %}selected{% endif %}>{{ t.nom }}</option>{% endfor %}</select></label>
           <button class='btn primary'>Filtrer</button></form></section>{% endif %}
+        <section class='stats'>
+          <article><small>Présences enregistrées</small><strong>{{ attendance_stats['Présent'] }}</strong></article>
+          <article><small>Absences</small><strong>{{ attendance_stats['Absent'] }}</strong></article>
+          <article><small>Retards</small><strong>{{ attendance_stats['Retard'] }}</strong></article>
+          <article><small>Activités pédagogiques</small><strong>{{ activity_stats.total }}</strong></article>
+        </section>
+        <section class='panel'><p><b>Activités réalisées :</b> {{ activity_stats.realisees }} · <b>À suivre :</b> {{ activity_stats.a_suivre }} · <b>Congés enregistrés :</b> {{ attendance_stats['Congé'] }}</p></section>
         {% if not admin %}<section class='panel'><h2>Déclarer ma présence</h2><form method='post' class='form-grid'>
           <input type='hidden' name='action' value='attendance'><label>Date *<input type='date' name='jour' value='{{ today }}' required></label>
           <label>Statut *<select name='statut'><option>Présent</option><option>Absent</option><option>Retard</option><option>Congé</option></select></label>
@@ -144,5 +163,6 @@ def register_teacher_followup(app, db, User, page):
         """
         return page("Suivi des enseignants", template, admin=admin, teachers=teachers,
                     selected=selected, attendance=attendance, activities=activities,
+                    attendance_stats=attendance_stats, activity_stats=activity_stats,
                     today=date.today().isoformat(),
                     kinds=("Cours", "Préparation", "Évaluation", "Réunion", "Remédiation", "Autre"))
