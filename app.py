@@ -267,7 +267,7 @@ LOGIN = """
 <div class='login-page'><form class='login-card' method='post'><div class='mark'>✦</div><small class='kicker'>BIENVENUE À</small><h1>École La Bonté</h1><p>Votre espace scolaire numérique.</p>
 <label>Matricule ou adresse e-mail<input name='identifier' required autocomplete='username'></label>
 <label>Mot de passe<input type='password' name='password' required autocomplete='current-password'></label>
-<button class='btn primary wide'>Se connecter</button><a href='/creer-compte-eleve'>Créer un compte Élève – École La Bonté, Chemègue, Lubumbashi</a><small class='muted'>Élèves · Parents · Enseignants · Administration</small></form></div>
+<button class='btn primary wide'>Se connecter</button><a href='/creer-compte-eleve'>Créer un compte Élève – École La Bonté, Chemègue, Lubumbashi</a><a href='/admission'>Déposer une demande d'admission</a><small class='muted'>Élèves · Parents · Enseignants · Administration</small></form></div>
 """
 DASH_ADMIN = """
 <section class='hero'><div><small>VUE GÉNÉRALE</small><h2>Bonjour, {{ current_user.nom }} 👋</h2><p>Bienvenue dans votre espace de gestion.</p></div><span>✦</span></section>
