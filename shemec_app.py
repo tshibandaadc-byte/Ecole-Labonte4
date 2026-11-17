@@ -2625,7 +2625,7 @@ def personnel():
             p = db.session.get(Personnel, personnel_id)
             periode = request.form.get("periode", "").strip()
             devise = request.form.get("devise", "CDF").upper()
-            contrats = StaffContract.query.filter_by(personnel_id=personnel_id, devise=devise, statut="Actif").order_by(StaffContract.date_debut.desc()).all() if p else []
+            contrats = StaffContract.query.filter(StaffContract.personnel_id == personnel_id, StaffContract.devise == devise, StaffContract.statut == "Actif", StaffContract.date_debut <= date_paiement, db.or_(StaffContract.date_fin.is_(None), StaffContract.date_fin >= date_paiement)).order_by(StaffContract.date_debut.desc()).all() if p else []
             if not salaire and contrats:
                 salaire = contrats[0].salaire_base
             avances_rows = StaffAdvance.query.filter(StaffAdvance.personnel_id == personnel_id, StaffAdvance.devise == devise, StaffAdvance.statut == "À retenir", StaffAdvance.date_avance <= date_paiement).order_by(StaffAdvance.date_avance.asc(), StaffAdvance.id.asc()).all() if p else []
