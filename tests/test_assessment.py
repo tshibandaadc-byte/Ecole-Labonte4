@@ -1,6 +1,6 @@
 import unittest
 
-from assessment import appreciation, classement_classe, decision_passage, moyenne_notes
+from assessment import appreciation, classement_classe, decision_passage, moyenne_notes, resultats_annuels
 
 
 class AssessmentTests(unittest.TestCase):
@@ -28,6 +28,26 @@ class AssessmentTests(unittest.TestCase):
         result = classement_classe([(1, 12)], 9)
         self.assertIsNone(result["rang"])
         self.assertEqual(result["effectif"], 1)
+
+
+    def test_annual_results_keep_final_exam_separate(self):
+        class Note:
+            def __init__(self, cours, note, periode):
+                self.cours, self.note, self.periode = cours, note, periode
+        result = resultats_annuels([
+            Note("Mathématiques", 12, "Trimestre 1"),
+            Note("Mathématiques", 14, "Trimestre 2"),
+            Note("Mathématiques", 16, "Examen final"),
+            Note("Français", 10, "Trimestre 1"),
+        ])
+        maths = result["matieres"][1]
+        self.assertEqual(maths["matiere"], "Mathématiques")
+        self.assertEqual(maths["moyenne"], 14.0)
+        self.assertEqual(maths["moyenne_examen_final"], 16.0)
+        self.assertEqual(result["moyenne_generale"], 12.0)
+
+    def test_annual_results_empty(self):
+        self.assertIsNone(resultats_annuels([])["moyenne_generale"])
 
 
 if __name__ == "__main__":
