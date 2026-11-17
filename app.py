@@ -262,6 +262,128 @@ class TeacherAssignment(db.Model):
     cree_le = db.Column(db.DateTime, default=datetime.utcnow)
     enseignant = db.relationship("User", backref=db.backref("affectations", lazy=True))
 
+
+class AcademicYear(db.Model):
+    __tablename__ = "academic_year"
+    id = db.Column(db.Integer, primary_key=True)
+    label = db.Column(db.String(20), unique=True, nullable=False)
+    date_debut = db.Column(db.Date, nullable=False)
+    date_fin = db.Column(db.Date, nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=False)
+    periods = db.relationship("AcademicPeriod", cascade="all,delete-orphan", backref="annee")
+
+class AcademicPeriod(db.Model):
+    __tablename__ = "academic_period"
+    id = db.Column(db.Integer, primary_key=True)
+    academic_year_id = db.Column(db.Integer, db.ForeignKey("academic_year.id"), nullable=False)
+    label = db.Column(db.String(40), nullable=False)
+    date_debut = db.Column(db.Date, nullable=False)
+    date_fin = db.Column(db.Date, nullable=False)
+    is_open = db.Column(db.Boolean, nullable=False, default=True)
+
+class LibraryBook(db.Model):
+    __tablename__ = "library_book"
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(40), unique=True, nullable=False)
+    titre = db.Column(db.String(180), nullable=False)
+    auteur = db.Column(db.String(140), nullable=False)
+    categorie = db.Column(db.String(80), nullable=False)
+    exemplaires = db.Column(db.Integer, nullable=False, default=1)
+    disponibles = db.Column(db.Integer, nullable=False, default=1)
+
+class LibraryLoan(db.Model):
+    __tablename__ = "library_loan"
+    id = db.Column(db.Integer, primary_key=True)
+    book_id = db.Column(db.Integer, db.ForeignKey("library_book.id"), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    emprunte_le = db.Column(db.Date, nullable=False, default=date.today)
+    retour_prevu = db.Column(db.Date, nullable=False)
+    retourne_le = db.Column(db.Date, nullable=True)
+    penalite_cdf = db.Column(db.Integer, nullable=False, default=0)
+    book = db.relationship("LibraryBook")
+    student = db.relationship("Student")
+
+class SchoolBus(db.Model):
+    __tablename__ = "school_bus"
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(40), unique=True, nullable=False)
+    plaque = db.Column(db.String(40), unique=True, nullable=False)
+    capacite = db.Column(db.Integer, nullable=False)
+    chauffeur = db.Column(db.String(140), nullable=False)
+    telephone = db.Column(db.String(40), nullable=True)
+
+class TransportLine(db.Model):
+    __tablename__ = "transport_line"
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(140), unique=True, nullable=False)
+    arrets = db.Column(db.Text, nullable=False, default="")
+    frais = db.Column(db.Integer, nullable=False, default=0)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+
+class TransportEnrollment(db.Model):
+    __tablename__ = "transport_enrollment"
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    bus_id = db.Column(db.Integer, db.ForeignKey("school_bus.id"), nullable=True)
+    line_id = db.Column(db.Integer, db.ForeignKey("transport_line.id"), nullable=False)
+    statut = db.Column(db.String(20), nullable=False, default="Actif")
+    student = db.relationship("Student")
+    bus = db.relationship("SchoolBus")
+    line = db.relationship("TransportLine")
+
+class CafeteriaMenu(db.Model):
+    __tablename__ = "cafeteria_menu"
+    id = db.Column(db.Integer, primary_key=True)
+    jour = db.Column(db.Date, nullable=False, index=True)
+    nom = db.Column(db.String(140), nullable=False)
+    prix = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+    actif = db.Column(db.Boolean, nullable=False, default=True)
+
+class CafeteriaOrder(db.Model):
+    __tablename__ = "cafeteria_order"
+    id = db.Column(db.Integer, primary_key=True)
+    menu_id = db.Column(db.Integer, db.ForeignKey("cafeteria_menu.id"), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    quantite = db.Column(db.Integer, nullable=False, default=1)
+    total = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+    statut = db.Column(db.String(20), nullable=False, default="Commandé")
+    cree_le = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    menu = db.relationship("CafeteriaMenu")
+    student = db.relationship("Student")
+
+class CafeteriaStock(db.Model):
+    __tablename__ = "cafeteria_stock"
+    id = db.Column(db.Integer, primary_key=True)
+    produit = db.Column(db.String(140), unique=True, nullable=False)
+    quantite = db.Column(db.Float, nullable=False, default=0)
+    unite = db.Column(db.String(30), nullable=False, default="unité")
+    seuil_alerte = db.Column(db.Float, nullable=False, default=5)
+
+class AccountingEntry(db.Model):
+    __tablename__ = "accounting_entry"
+    id = db.Column(db.Integer, primary_key=True)
+    type_operation = db.Column(db.String(20), nullable=False)
+    libelle = db.Column(db.String(180), nullable=False)
+    categorie = db.Column(db.String(80), nullable=False)
+    montant = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+    date_operation = db.Column(db.Date, nullable=False, default=date.today)
+    reference = db.Column(db.String(80), nullable=True)
+    cree_le = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+class AuditLog(db.Model):
+    __tablename__ = "audit_log"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    action = db.Column(db.String(80), nullable=False)
+    entite = db.Column(db.String(80), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    ip = db.Column(db.String(64), nullable=True)
+    cree_le = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    user = db.relationship("User")
+
 @login.user_loader
 def load_user(uid): return db.session.get(User, int(uid))
 
@@ -303,7 +425,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École Shemec</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE SHEMEC<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a><a href='/personnel'>♙ Personnel & paie</a>{% endif %}{% if current_user.role in ['enseignant','admin'] %}<a href='/mon-salaire'>◈ Mon salaire</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a><a href='/personnel'>♙ Personnel & paie</a><a href='/annees-scolaires'>▦ Années & trimestres</a><a href='/bibliotheque'>▤ Bibliothèque</a><a href='/transport'>▣ Transport</a><a href='/cantine'>♨ Cantine</a><a href='/comptabilite'>◈ Comptabilité</a><a href='/journal'>▤ Journal d’audit</a>{% endif %}{% if current_user.role in ['enseignant','admin'] %}<a href='/mon-salaire'>◈ Mon salaire</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/frais'>▣ Frais par classe</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -1907,6 +2029,254 @@ def payroll_pdf(payroll_id):
 
 @app.route("/manifest.json")
 def manifest(): return send_from_directory(ROOT/"static","manifest.json")
+
+
+
+def journaliser(action, entite, details=""):
+    try:
+        db.session.add(AuditLog(user_id=current_user.id if current_user.is_authenticated else None,
+            action=action, entite=entite, details=str(details)[:2000],
+            ip=request.headers.get("X-Forwarded-For", request.remote_addr)))
+    except Exception:
+        db.session.rollback()
+
+
+@app.route("/annees-scolaires", methods=["GET", "POST"])
+@admin_only
+def annees_scolaires():
+    if request.method == "POST":
+        action = request.form.get("action", "year")
+        if action == "year":
+            label = request.form.get("label", "").strip()
+            try:
+                debut = date.fromisoformat(request.form.get("date_debut", ""))
+                fin = date.fromisoformat(request.form.get("date_fin", ""))
+            except ValueError:
+                abort(400)
+            if not label or fin <= debut or AcademicYear.query.filter_by(label=label).first():
+                flash("Année invalide ou déjà enregistrée.", "error")
+            else:
+                active = request.form.get("active") == "on"
+                if active:
+                    AcademicYear.query.update({AcademicYear.active: False})
+                db.session.add(AcademicYear(label=label, date_debut=debut, date_fin=fin, active=active))
+                db.session.commit()
+                journaliser("Création année scolaire", "AcademicYear", label)
+                db.session.commit()
+                flash("Année scolaire enregistrée.", "success")
+        else:
+            try:
+                year = db.session.get(AcademicYear, int(request.form.get("year_id", "")))
+                debut = date.fromisoformat(request.form.get("period_start", ""))
+                fin = date.fromisoformat(request.form.get("period_end", ""))
+            except (ValueError, TypeError):
+                abort(400)
+            label = request.form.get("period_label", "").strip()
+            if not year or not label or fin <= debut:
+                abort(400)
+            db.session.add(AcademicPeriod(annee=year, label=label, date_debut=debut, date_fin=fin,
+                is_open=request.form.get("is_open") == "on"))
+            db.session.commit()
+            journaliser("Création période scolaire", "AcademicPeriod", label)
+            db.session.commit()
+            flash("Période scolaire enregistrée.", "success")
+        return redirect(url_for("annees_scolaires"))
+    years = AcademicYear.query.order_by(AcademicYear.date_debut.desc()).all()
+    return page("Années scolaires & trimestres", """
+    <section class='panel'><h2>Créer une année scolaire</h2><form method='post' class='form-grid'>
+      <input type='hidden' name='action' value='year'><label>Libellé<input name='label' placeholder='2026-2027' required></label>
+      <label>Date de début<input type='date' name='date_debut' required></label><label>Date de fin<input type='date' name='date_fin' required></label>
+      <label><span>Année active</span><input type='checkbox' name='active'></label><button class='btn primary'>Enregistrer l’année</button></form></section>
+    <section class='panel'><h2>Ajouter une période / trimestre</h2><form method='post' class='form-grid'>
+      <input type='hidden' name='action' value='period'><label>Année scolaire<select name='year_id' required>{% for y in years %}<option value='{{ y.id }}'>{{ y.label }}</option>{% endfor %}</select></label>
+      <label>Nom de la période<input name='period_label' placeholder='Trimestre 1' required></label><label>Début<input type='date' name='period_start' required></label><label>Fin<input type='date' name='period_end' required></label>
+      <label><span>Période ouverte</span><input type='checkbox' name='is_open' checked></label><button class='btn primary'>Ajouter la période</button></form></section>
+    <section class='panel'><h2>Années et périodes enregistrées</h2>{% for y in years %}<h3>{{ y.label }} {% if y.active %}<span class='pill'>Année active</span>{% endif %}</h3><p>{{ y.date_debut }} → {{ y.date_fin }}</p><div class='table-wrap'><table><tr><th>Période</th><th>Dates</th><th>État</th></tr>{% for p in y.periods %}<tr><td>{{ p.label }}</td><td>{{ p.date_debut }} → {{ p.date_fin }}</td><td>{{ 'Ouverte' if p.is_open else 'Clôturée' }}</td></tr>{% else %}<tr><td colspan='3'>Aucune période.</td></tr>{% endfor %}</table></div>{% endfor %}</section>
+    """, years=years)
+
+
+@app.route("/bibliotheque", methods=["GET", "POST"])
+@login_required
+def bibliotheque():
+    if current_user.role != "admin":
+        abort(403)
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "book":
+            code = request.form.get("code", "").strip()
+            titre = request.form.get("titre", "").strip()
+            auteur = request.form.get("auteur", "").strip()
+            categorie = request.form.get("categorie", "").strip()
+            try: copies = int(request.form.get("exemplaires", "1"))
+            except ValueError: abort(400)
+            if not all([code, titre, auteur, categorie]) or copies < 1 or LibraryBook.query.filter_by(code=code).first():
+                flash("Vérifiez le livre et son code unique.", "error")
+            else:
+                db.session.add(LibraryBook(code=code, titre=titre, auteur=auteur, categorie=categorie, exemplaires=copies, disponibles=copies))
+                db.session.commit()
+                journaliser("Ajout livre", "LibraryBook", code)
+                db.session.commit()
+                flash("Livre ajouté à la bibliothèque.", "success")
+        elif action == "loan":
+            try:
+                book = db.session.get(LibraryBook, int(request.form.get("book_id", "")))
+                student = db.session.get(Student, int(request.form.get("student_id", "")))
+                due = date.fromisoformat(request.form.get("retour_prevu", ""))
+            except (ValueError, TypeError): abort(400)
+            if not book or not student or book.disponibles < 1:
+                flash("Livre indisponible ou élève introuvable.", "error")
+            else:
+                book.disponibles -= 1
+                db.session.add(LibraryLoan(book=book, student=student, retour_prevu=due))
+                db.session.commit()
+                journaliser("Emprunt livre", "LibraryLoan", f"{student.matricule}:{book.code}")
+                db.session.commit()
+                flash("Emprunt enregistré.", "success")
+        elif action == "return":
+            try: loan = db.session.get(LibraryLoan, int(request.form.get("loan_id", "")))
+            except (ValueError, TypeError): abort(400)
+            if not loan or loan.retourne_le:
+                abort(400)
+            loan.retourne_le = date.today()
+            loan.book.disponibles = min(loan.book.exemplaires, loan.book.disponibles + 1)
+            retard = max(0, (loan.retourne_le - loan.retour_prevu).days)
+            loan.penalite_cdf = retard * int(os.getenv("LIBRARY_FINE_PER_DAY_CDF", "500"))
+            db.session.commit()
+            journaliser("Retour livre", "LibraryLoan", f"emprunt={loan.id}; pénalité={loan.penalite_cdf} CDF")
+            db.session.commit()
+            flash("Retour enregistré.", "success")
+        return redirect(url_for("bibliotheque"))
+    books = LibraryBook.query.order_by(LibraryBook.titre).all()
+    loans = LibraryLoan.query.order_by(LibraryLoan.id.desc()).limit(100).all()
+    students = Student.query.order_by(Student.nom).all()
+    return page("Bibliothèque scolaire", """
+    <section class='panel'><h2>Ajouter un livre</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='book'>
+      <label>Code<input name='code' required></label><label>Titre<input name='titre' required></label><label>Auteur<input name='auteur' required></label><label>Catégorie<input name='categorie' required></label><label>Exemplaires<input type='number' name='exemplaires' min='1' value='1' required></label><button class='btn primary'>Ajouter le livre</button></form></section>
+    <section class='panel'><h2>Enregistrer un emprunt</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='loan'><label>Livre<select name='book_id'>{% for b in books if b.disponibles > 0 %}<option value='{{ b.id }}'>{{ b.titre }} ({{ b.disponibles }} disponible(s))</option>{% endfor %}</select></label><label>Élève<select name='student_id'>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Date de retour prévue<input type='date' name='retour_prevu' required></label><button class='btn primary'>Enregistrer l’emprunt</button></form></section>
+    <section class='panel'><h2>Catalogue</h2><div class='table-wrap'><table><tr><th>Code</th><th>Titre</th><th>Auteur</th><th>Catégorie</th><th>Disponibles</th></tr>{% for b in books %}<tr><td>{{ b.code }}</td><td>{{ b.titre }}</td><td>{{ b.auteur }}</td><td>{{ b.categorie }}</td><td>{{ b.disponibles }}/{{ b.exemplaires }}</td></tr>{% else %}<tr><td colspan='5'>Aucun livre enregistré.</td></tr>{% endfor %}</table></div></section>
+    <section class='panel'><h2>Emprunts et retours</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Livre</th><th>Emprunt</th><th>Retour prévu</th><th>État</th><th>Pénalité</th><th>Action</th></tr>{% for l in loans %}<tr><td>{{ l.student.nom }}</td><td>{{ l.book.titre }}</td><td>{{ l.emprunte_le }}</td><td>{{ l.retour_prevu }}</td><td>{{ 'Retourné' if l.retourne_le else 'En cours' }}</td><td>{{ l.penalite_cdf }} CDF</td><td>{% if not l.retourne_le %}<form method='post'><input type='hidden' name='action' value='return'><input type='hidden' name='loan_id' value='{{ l.id }}'><button class='btn outline'>Enregistrer retour</button></form>{% endif %}</td></tr>{% else %}<tr><td colspan='7'>Aucun emprunt.</td></tr>{% endfor %}</table></div></section>
+    """, books=books, loans=loans, students=students)
+
+
+@app.route("/transport", methods=["GET", "POST"])
+@admin_only
+def transport():
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "bus":
+            code=request.form.get("code","").strip(); plaque=request.form.get("plaque","").strip()
+            chauffeur=request.form.get("chauffeur","").strip()
+            try: capacity=int(request.form.get("capacite",""))
+            except ValueError: abort(400)
+            if not code or not plaque or not chauffeur or capacity < 1:
+                abort(400)
+            db.session.add(SchoolBus(code=code, plaque=plaque, chauffeur=chauffeur, capacite=capacity,
+                telephone=request.form.get("telephone","").strip()))
+            db.session.commit(); journaliser("Ajout bus","SchoolBus",code); db.session.commit()
+            flash("Bus enregistré.","success")
+        elif action == "line":
+            name=request.form.get("nom","").strip(); stops=request.form.get("arrets","").strip()
+            try: fee=int(request.form.get("frais","0")); currency=request.form.get("devise","CDF").upper()
+            except ValueError: abort(400)
+            if not name or fee < 0 or currency not in ("CDF","USD"): abort(400)
+            db.session.add(TransportLine(nom=name,arrets=stops,frais=fee,devise=currency))
+            db.session.commit(); journaliser("Ajout itinéraire","TransportLine",name); db.session.commit()
+            flash("Itinéraire enregistré.","success")
+        elif action == "enroll":
+            try: student=db.session.get(Student,int(request.form.get("student_id",""))); line=db.session.get(TransportLine,int(request.form.get("line_id","")))
+            except ValueError: abort(400)
+            bus_id=request.form.get("bus_id","").strip()
+            bus=db.session.get(SchoolBus,int(bus_id)) if bus_id.isdigit() else None
+            if not student or not line or (bus and TransportEnrollment.query.filter_by(bus_id=bus.id,statut="Actif").count() >= bus.capacite): abort(400)
+            db.session.add(TransportEnrollment(student=student,line=line,bus=bus))
+            db.session.commit(); journaliser("Inscription transport","TransportEnrollment",student.matricule); db.session.commit()
+            flash("Élève affecté au transport.","success")
+        return redirect(url_for("transport"))
+    return page("Transport scolaire", """
+    <section class='panel'><h2>Ajouter un bus</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='bus'><label>Code<input name='code' required></label><label>Immatriculation<input name='plaque' required></label><label>Chauffeur<input name='chauffeur' required></label><label>Téléphone<input name='telephone'></label><label>Capacité<input type='number' name='capacite' min='1' required></label><button class='btn primary'>Enregistrer le bus</button></form></section>
+    <section class='panel'><h2>Créer un itinéraire</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='line'><label>Nom<input name='nom' required></label><label>Arrêts (séparés par des virgules)<input name='arrets'></label><label>Frais<input type='number' name='frais' min='0' required></label><label>Devise<select name='devise'><option>CDF</option><option>USD</option></select></label><button class='btn primary'>Créer l’itinéraire</button></form></section>
+    <section class='panel'><h2>Affecter un élève</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='enroll'><label>Élève<select name='student_id'>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Itinéraire<select name='line_id'>{% for l in lines %}<option value='{{ l.id }}'>{{ l.nom }}</option>{% endfor %}</select></label><label>Bus<select name='bus_id'><option value=''>Sans bus attribué</option>{% for b in buses %}<option value='{{ b.id }}'>{{ b.code }} · {{ b.plaque }}</option>{% endfor %}</select></label><button class='btn primary'>Affecter</button></form></section>
+    <section class='panel'><h2>Bus et itinéraires</h2><div class='table-wrap'><table><tr><th>Bus</th><th>Chauffeur</th><th>Capacité</th><th>Itinéraire</th><th>Frais</th></tr>{% for b in buses %}<tr><td>{{ b.code }} · {{ b.plaque }}</td><td>{{ b.chauffeur }}<small class='sub'>{{ b.telephone or '' }}</small></td><td>{{ TransportEnrollment.query.filter_by(bus_id=b.id,statut='Actif').count() }}/{{ b.capacite }}</td><td>—</td><td>—</td></tr>{% endfor %}{% for l in lines %}<tr><td>—</td><td>—</td><td>—</td><td>{{ l.nom }}<small class='sub'>{{ l.arrets }}</small></td><td>{{ l.frais }} {{ l.devise }}</td></tr>{% endfor %}</table></div></section>
+    <section class='panel'><h2>Élèves transportés</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Itinéraire</th><th>Bus</th><th>Statut</th></tr>{% for e in enrollments %}<tr><td>{{ e.student.nom }}</td><td>{{ e.line.nom }}</td><td>{{ e.bus.code if e.bus else 'Non attribué' }}</td><td>{{ e.statut }}</td></tr>{% else %}<tr><td colspan='4'>Aucun élève affecté.</td></tr>{% endfor %}</table></div></section>
+    """, students=Student.query.order_by(Student.nom).all(), lines=TransportLine.query.order_by(TransportLine.nom).all(),
+    buses=SchoolBus.query.order_by(SchoolBus.code).all(), enrollments=TransportEnrollment.query.order_by(TransportEnrollment.id.desc()).all())
+
+
+@app.route("/cantine", methods=["GET", "POST"])
+@admin_only
+def cantine():
+    if request.method == "POST":
+        action=request.form.get("action")
+        if action=="menu":
+            name=request.form.get("nom","").strip()
+            try: day=date.fromisoformat(request.form.get("jour","")); price=int(request.form.get("prix","")); currency=request.form.get("devise","CDF").upper()
+            except ValueError: abort(400)
+            if not name or price < 0 or currency not in ("CDF","USD"): abort(400)
+            db.session.add(CafeteriaMenu(jour=day,nom=name,prix=price,devise=currency))
+            db.session.commit(); journaliser("Ajout menu cantine","CafeteriaMenu",name); db.session.commit()
+            flash("Menu ajouté.","success")
+        elif action=="order":
+            try: menu=db.session.get(CafeteriaMenu,int(request.form.get("menu_id",""))); student=db.session.get(Student,int(request.form.get("student_id",""))); qty=int(request.form.get("quantite","1"))
+            except ValueError: abort(400)
+            if not menu or not student or qty < 1: abort(400)
+            db.session.add(CafeteriaOrder(menu=menu,student=student,quantite=qty,total=menu.prix*qty,devise=menu.devise))
+            db.session.commit(); journaliser("Commande cantine","CafeteriaOrder",student.matricule); db.session.commit()
+            flash("Commande enregistrée.","success")
+        elif action=="stock":
+            product=request.form.get("produit","").strip()
+            try: qty=float(request.form.get("quantite","")); threshold=float(request.form.get("seuil",""))
+            except ValueError: abort(400)
+            unit=request.form.get("unite","unité").strip()
+            if not product or qty < 0 or threshold < 0: abort(400)
+            item=CafeteriaStock.query.filter_by(produit=product).first()
+            if item: item.quantite=qty; item.seuil_alerte=threshold; item.unite=unit
+            else: db.session.add(CafeteriaStock(produit=product,quantite=qty,seuil_alerte=threshold,unite=unit))
+            db.session.commit(); journaliser("Mise à jour stock cantine","CafeteriaStock",product); db.session.commit()
+            flash("Stock mis à jour.","success")
+        return redirect(url_for("cantine"))
+    return page("Cantine scolaire", """
+    <section class='panel'><h2>Créer un menu</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='menu'><label>Repas<input name='nom' required></label><label>Date<input type='date' name='jour' required></label><label>Prix<input type='number' name='prix' min='0' required></label><label>Devise<select name='devise'><option>CDF</option><option>USD</option></select></label><button class='btn primary'>Ajouter le menu</button></form></section>
+    <section class='panel'><h2>Enregistrer une commande</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='order'><label>Menu<select name='menu_id'>{% for m in menus %}<option value='{{ m.id }}'>{{ m.jour }} · {{ m.nom }} — {{ m.prix }} {{ m.devise }}</option>{% endfor %}</select></label><label>Élève<select name='student_id'>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Quantité<input type='number' name='quantite' min='1' value='1' required></label><button class='btn primary'>Valider la commande</button></form></section>
+    <section class='panel'><h2>Stock alimentaire</h2><form method='post' class='form-grid'><input type='hidden' name='action' value='stock'><label>Produit<input name='produit' required></label><label>Quantité<input type='number' name='quantite' step='0.01' min='0' required></label><label>Unité<input name='unite' value='kg'></label><label>Seuil d’alerte<input type='number' name='seuil' step='0.01' min='0' value='5'></label><button class='btn primary'>Enregistrer le stock</button></form>
+    <div class='table-wrap'><table><tr><th>Produit</th><th>Stock</th><th>Alerte</th></tr>{% for s in stocks %}<tr><td>{{ s.produit }}</td><td>{{ s.quantite }} {{ s.unite }}</td><td>{% if s.quantite <= s.seuil_alerte %}<span class='status pending'>Stock faible</span>{% else %}Normal{% endif %}</td></tr>{% else %}<tr><td colspan='3'>Aucun stock.</td></tr>{% endfor %}</table></div></section>
+    <section class='panel'><h2>Commandes récentes</h2><div class='table-wrap'><table><tr><th>Date</th><th>Élève</th><th>Repas</th><th>Qté</th><th>Total</th></tr>{% for o in orders %}<tr><td>{{ o.cree_le.date() }}</td><td>{{ o.student.nom }}</td><td>{{ o.menu.nom }}</td><td>{{ o.quantite }}</td><td>{{ o.total }} {{ o.devise }}</td></tr>{% else %}<tr><td colspan='5'>Aucune commande.</td></tr>{% endfor %}</table></div></section>
+    """, menus=CafeteriaMenu.query.order_by(CafeteriaMenu.jour.desc()).all(), students=Student.query.order_by(Student.nom).all(),
+    stocks=CafeteriaStock.query.order_by(CafeteriaStock.produit).all(), orders=CafeteriaOrder.query.order_by(CafeteriaOrder.id.desc()).limit(100).all())
+
+
+@app.route("/comptabilite", methods=["GET", "POST"])
+@admin_only
+def comptabilite():
+    if request.method == "POST":
+        kind=request.form.get("type_operation","")
+        label=request.form.get("libelle","").strip()
+        category=request.form.get("categorie","Divers").strip()
+        try: amount=int(request.form.get("montant","")); day=date.fromisoformat(request.form.get("date_operation",""))
+        except ValueError: abort(400)
+        currency=request.form.get("devise","CDF").upper()
+        if kind not in ("Recette","Dépense") or not label or amount <= 0 or currency not in ("CDF","USD"): abort(400)
+        db.session.add(AccountingEntry(type_operation=kind,libelle=label,categorie=category,montant=amount,devise=currency,date_operation=day,reference=request.form.get("reference","").strip()))
+        db.session.commit(); journaliser("Écriture comptable","AccountingEntry",f"{kind}: {label} {amount} {currency}"); db.session.commit()
+        flash("Écriture comptable enregistrée.","success")
+        return redirect(url_for("comptabilite"))
+    entries=AccountingEntry.query.order_by(AccountingEntry.date_operation.desc(),AccountingEntry.id.desc()).all()
+    totals={}
+    for currency in ("CDF","USD"):
+        income=sum(x.montant for x in entries if x.devise==currency and x.type_operation=="Recette")
+        expenses=sum(x.montant for x in entries if x.devise==currency and x.type_operation=="Dépense")
+        totals[currency]={"income":income,"expenses":expenses,"balance":income-expenses}
+    return page("Comptabilité générale", """
+    <section class='stats'><article><small>Solde CDF</small><strong>{{ totals.CDF.balance }} CDF</strong><em>Recettes moins dépenses</em></article><article><small>Solde USD</small><strong>{{ totals.USD.balance }} USD</strong><em>Devises séparées</em></article></section>
+    <section class='panel'><h2>Nouvelle écriture</h2><form method='post' class='form-grid'><label>Type<select name='type_operation'><option>Recette</option><option>Dépense</option></select></label><label>Libellé<input name='libelle' required></label><label>Catégorie<input name='categorie' required></label><label>Montant<input type='number' name='montant' min='1' required></label><label>Devise<select name='devise'><option>CDF</option><option>USD</option></select></label><label>Date<input type='date' name='date_operation' required></label><label>Référence<input name='reference'></label><button class='btn primary'>Enregistrer</button></form></section>
+    <section class='panel'><h2>Journal comptable</h2><div class='table-wrap'><table><tr><th>Date</th><th>Type</th><th>Libellé</th><th>Catégorie</th><th>Montant</th><th>Référence</th></tr>{% for e in entries %}<tr><td>{{ e.date_operation }}</td><td>{{ e.type_operation }}</td><td>{{ e.libelle }}</td><td>{{ e.categorie }}</td><td>{{ e.montant }} {{ e.devise }}</td><td>{{ e.reference or '—' }}</td></tr>{% else %}<tr><td colspan='6'>Aucune écriture comptable.</td></tr>{% endfor %}</table></div></section>
+    """, totals=totals, entries=entries)
+
+
+@app.route("/journal")
+@admin_only
+def journal():
+    logs=AuditLog.query.order_by(AuditLog.cree_le.desc()).limit(250).all()
+    return page("Journal des opérations", """<section class='panel'><div class='table-wrap'><table><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Entité</th><th>Détails</th><th>IP</th></tr>{% for x in logs %}<tr><td>{{ x.cree_le.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ x.user.nom if x.user else 'Système' }}</td><td>{{ x.action }}</td><td>{{ x.entite }}</td><td>{{ x.details or '' }}</td><td>{{ x.ip or '' }}</td></tr>{% else %}<tr><td colspan='6'>Aucune opération.</td></tr>{% endfor %}</table></div></section>""", logs=logs)
 
 @app.errorhandler(403)
 def forbidden(_): return page("Accès refusé","<section class='panel'><h2>Accès réservé à l'administration.</h2><a href='/'>Retour</a></section>"),403
