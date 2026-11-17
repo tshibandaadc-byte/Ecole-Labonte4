@@ -247,7 +247,8 @@ DETAIL = """
 <div class='actions'><a class='btn primary' href='/eleves/{{ s.id }}/modifier'>Modifier</a><form method='post' action='/eleves/{{ s.id }}/supprimer' onsubmit="return confirm('Supprimer ce dossier ?')"><button class='btn danger'>Supprimer</button></form></div></section>
 """
 GRADES = """
-{% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<input name='periode' value='Trimestre 1'></label><button class='btn primary'>Enregistrer</button></form></section>{% endif %}
+{% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<input name='periode' value='Trimestre 1'></label><button class='btn primary'>Enregistrer</button></form></section>
+{% elif teacher %}<section class='panel'><h2>Saisir une note pour un cours affecté</h2><p>Vous ne pouvez évaluer que les élèves de vos classes et les cours qui vous sont attribués.</p><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.classe }}</option>{% endfor %}</select></label><label>Cours affecté<select name='assignment_id' required>{% for a in assignments %}<option value='{{ a.id }}'>{{ a.cours }} · {{ a.classe }} · {{ a.annee_academique }}</option>{% endfor %}</select></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<input name='periode' value='Trimestre 1' required></label><button class='btn primary' {% if not assignments or not students %}disabled{% endif %}>Enregistrer la note</button></form>{% if not assignments %}<p>Aucun cours ne vous est affecté. Contactez l'administration.</p>{% endif %}</section>{% endif %}
 <section class='panel'><h2>Résultats et notes</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in notes %}<tr><td>{{ n.eleve.nom }}</td><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td><b>{{ n.note }}/20</b></td></tr>{% else %}<tr><td colspan='4'>Aucune note disponible.</td></tr>{% endfor %}</table></div></section>
 """
 FINANCES = """
@@ -419,19 +420,51 @@ def eleve_supprimer(sid):
 @app.route("/notes", methods=["GET","POST"])
 @login_required
 def notes():
-    admin=current_user.role in ("admin","enseignant")
+    is_admin=current_user.role=="admin"
+    is_teacher=current_user.role=="enseignant"
     if request.method=="POST":
-        if not admin: abort(403)
-        n=Grade(student_id=int(request.form["student_id"]),cours=request.form["cours"].strip(),
-                note=float(request.form["note"]),periode=request.form.get("periode","Trimestre 1"))
-        if not 0 <= n.note <= 20: abort(400)
-        db.session.add(n); db.session.commit(); flash("Note enregistrée.","success"); return redirect(url_for("notes"))
+        if not (is_admin or is_teacher): abort(403)
+        try:
+            student_id=int(request.form["student_id"])
+            note=float(request.form["note"])
+        except (ValueError, KeyError, TypeError):
+            abort(400)
+        if not 0 <= note <= 20: abort(400)
+        student=db.session.get(Student, student_id)
+        cours=request.form.get("cours","").strip() if is_admin else ""
+        if is_teacher:
+            try: assignment_id=int(request.form.get("assignment_id",""))
+            except (ValueError, TypeError): abort(400)
+            assignment=TeacherAssignment.query.filter_by(id=assignment_id,teacher_id=current_user.id).first()
+            if not assignment or not student or student.classe != assignment.classe:
+                abort(403)
+            cours=assignment.cours
+        elif not student or not cours:
+            abort(400)
+        n=Grade(student_id=student.id,cours=cours,note=note,
+            periode=request.form.get("periode","Trimestre 1").strip() or "Trimestre 1",
+            annee_academique=(assignment.annee_academique if is_teacher else "2026-2027"))
+        db.session.add(n); db.session.commit()
+        flash("Note enregistrée.", "success")
+        return redirect(url_for("notes"))
     query=Grade.query.join(Student)
-    if not admin:
-        if not current_user.student_id: return page("Notes",GRADES,admin=False,notes=[])
-        query=query.filter(Grade.student_id==current_user.student_id)
-    return page("Notes & résultats",GRADES,admin=admin,notes=query.order_by(Grade.id.desc()).all(),
-                students=Student.query.order_by(Student.nom).all() if admin else [])
+    students=[]
+    assignments=[]
+    if is_admin:
+        students=Student.query.order_by(Student.nom).all()
+        notes_list=query.order_by(Grade.id.desc()).all()
+    elif is_teacher:
+        assignments=TeacherAssignment.query.filter_by(teacher_id=current_user.id).order_by(
+            TeacherAssignment.annee_academique.desc(),TeacherAssignment.classe,TeacherAssignment.cours).all()
+        pairs=[db.and_(Student.classe==a.classe,Grade.cours==a.cours,Grade.annee_academique==a.annee_academique) for a in assignments]
+        students=Student.query.filter(Student.classe.in_([a.classe for a in assignments])).order_by(Student.nom).all() if assignments else []
+        notes_list=query.filter(db.or_(*pairs)).order_by(Grade.id.desc()).all() if pairs else []
+    else:
+        if not current_user.student_id:
+            return page("Notes",GRADES,admin=False,teacher=False,notes=[],students=[],assignments=[])
+        notes_list=query.filter(Grade.student_id==current_user.student_id).order_by(Grade.id.desc()).all()
+    return page("Notes & résultats",GRADES,admin=is_admin,teacher=is_teacher,notes=notes_list,
+        students=students,assignments=assignments)
 
 @app.route("/finances", methods=["GET","POST"])
 @login_required
