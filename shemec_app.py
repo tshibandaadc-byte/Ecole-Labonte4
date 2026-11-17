@@ -874,7 +874,7 @@ def eleve_nouveau():
             return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
         if not nom_eleve or not promotion_eleve or not classe_scolaire or not 2000 <= annee <= 2100 or nombre_cours < 0 or credits < 0:
             flash("Complétez le nom, la promotion et la classe. Vérifiez aussi l'année, les cours et les crédits.", "error")
-            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRES)
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
         photo = request.files.get("photo")
         if not photo or not photo.filename:
             flash("La photo de profil est obligatoire.", "error")
