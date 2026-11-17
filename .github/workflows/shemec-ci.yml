@@ -27,11 +27,16 @@ jobs:
           response = client.get("/connexion")
           assert response.status_code == 200, response.status_code
           response = client.post("/connexion", data={
-              "email": "admin@shemec.cd",
+              "identifier": "admin@shemec.cd",
               "password": os.environ["ADMIN_PASSWORD"]
           }, follow_redirects=True)
           assert response.status_code == 200, response.status_code
           assert "École Shemec" in response.get_data(as_text=True)
           assert "Élèves inscrits" in response.get_data(as_text=True)
+          for path in ["/annees-scolaires", "/bibliotheque", "/transport", "/cantine", "/comptabilite", "/journal"]:
+              check = client.get(path)
+              assert check.status_code == 200, (path, check.status_code)
+          public = client.get("/accueil")
+          assert public.status_code == 200
           print("École Shemec Flask smoke test passed.")
           PY
