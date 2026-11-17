@@ -1,1 +1,18 @@
-{"name":"École La Bonté","short_name":"La Bonté","description":"Plateforme scolaire École La Bonté – Chemègue, Lubumbashi","start_url":"/","scope":"/","display":"standalone","background_color":"#f5f3ec","theme_color":"#075b49","icons":[{"src":"/static/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "École Shemec",
+  "short_name": "Shemec",
+  "description": "Portail scolaire de l’École Shemec à Lubumbashi, RDC.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f3ec",
+  "theme_color": "#075b49",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
