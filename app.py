@@ -442,6 +442,30 @@ def page(title, template, **context):
     return render_template_string(BASE, title=title, content=content)
 
 
+PUBLIC_HOME = """
+<section class='public-hero'>
+  <div class='public-copy'>
+    <span class='public-location'>🇨🇩 LUBUMBASHI · RÉPUBLIQUE DÉMOCRATIQUE DU CONGO</span>
+    <h1>Bienvenue à <strong>l’École Shemec</strong></h1>
+    <h2>Apprendre aujourd’hui, réussir demain !</h2>
+    <p>Une éducation de qualité, des valeurs solides et un accompagnement attentif pour chaque enfant.</p>
+    <div class='public-actions'><a class='btn public-cta' href='/admission'>Demander une inscription</a><a class='btn public-secondary' href='/connexion'>Accéder à mon espace</a></div>
+  </div>
+  <div class='public-emblem'><span>🎓</span><b>ÉCOLE SHEMEC</b><small>SAVOIR · RÉUSSIR · BÂTIR</small></div>
+</section>
+<section class='public-portals'>
+  <a href='/connexion' class='portal-card student'><b>♙ Espace Élève</b><span>Notes, bulletins, horaires et présence</span></a>
+  <a href='/connexion' class='portal-card parent'><b>♧ Espace Parent</b><span>Suivi scolaire et frais de vos enfants</span></a>
+  <a href='/connexion' class='portal-card teacher'><b>✎ Espace Enseignant</b><span>Classes, cours, notes et présences</span></a>
+  <a href='/connexion' class='portal-card admin'><b>⚙ Administration</b><span>Gestion et pilotage de l’établissement</span></a>
+</section>
+<section class='public-columns'>
+  <article class='panel'><h2>Notre engagement</h2><p>Former des élèves responsables, curieux et prêts à construire l’avenir de la République démocratique du Congo.</p><ul><li>Excellence académique</li><li>Discipline et respect</li><li>Solidarité et responsabilité</li></ul></article>
+  <article class='panel'><h2>Services scolaires</h2><p>Un portail numérique pour accompagner les familles et l’équipe éducative.</p><div class='service-tags'><span>Suivi des résultats</span><span>Communication école-famille</span><span>Gestion des frais</span><span>Calendrier scolaire</span></div></article>
+</section>
+<footer class='public-footer'>École Shemec · Lubumbashi, RDC <span>Ensemble pour une éducation d’excellence !</span></footer>
+"""
+
 @app.route('/accueil')
 def accueil():
     return page('Accueil', PUBLIC_HOME)
