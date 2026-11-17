@@ -53,7 +53,7 @@ core.BASE = core.BASE.replace(
 )
 core.BASE = core.BASE.replace(
     "<a href='/espace-professionnel'>♙ Dossier professionnel</a>",
-    "<a href='/espace-professionnel'>♙ Dossier professionnel</a><a href='/admin/annonces'>▤ Gestion des annonces</a>"
+    "<a href='/espace-professionnel'>♙ Dossier professionnel</a>{% if current_user.role == 'admin' %}<a href='/admin/annonces'>▤ Gestion des annonces</a>{% endif %}"
 )
 
 if __name__ == "__main__":
