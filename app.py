@@ -17,7 +17,9 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-only-change-this-secret")
 db_url = os.getenv("DATABASE_URL", "sqlite:///" + str(ROOT / "shemec.db"))
 if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
+    db_url = db_url.replace("postgres://", "postgresql+psycopg://", 1)
+elif db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
 app.config.update(SQLALCHEMY_DATABASE_URI=db_url, SQLALCHEMY_TRACK_MODIFICATIONS=False,
                   MAX_CONTENT_LENGTH=5 * 1024 * 1024, UPLOAD_FOLDER=str(UPLOADS))
 db = SQLAlchemy(app)
@@ -50,6 +52,7 @@ class Student(db.Model):
     cree_le = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.relationship("Grade", cascade="all,delete-orphan", backref="eleve")
     paiements = db.relationship("Payment", cascade="all,delete-orphan", backref="eleve")
+    absences = db.relationship("Attendance", cascade="all,delete-orphan", backref="eleve")
     @property
     def moyenne(self):
         return round(sum(n.note for n in self.notes) / len(self.notes), 2) if self.notes else 0
@@ -68,6 +71,13 @@ class Payment(db.Model):
     montant = db.Column(db.Integer, nullable=False)
     statut = db.Column(db.String(20), default="En attente")
     date_paiement = db.Column(db.Date, nullable=True)
+
+class Attendance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    jour = db.Column(db.Date, nullable=False, default=date.today)
+    statut = db.Column(db.String(20), nullable=False, default="Absent")
+    motif = db.Column(db.String(255), default="")
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -113,7 +123,7 @@ BASE = """
 <title>{{ title }} · École Shemec</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE SHEMEC<small>ESPACE SCOLAIRE</small></span></a>
 <nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}
-<a href='/notes'>▤ Notes & résultats</a><a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
+<a href='/notes'>▤ Notes & résultats</a>{% if current_user.role=='admin' %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
 {% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}
@@ -134,13 +144,13 @@ LOGIN = """
 """
 DASH_ADMIN = """
 <section class='hero'><div><small>VUE GÉNÉRALE</small><h2>Bonjour, {{ current_user.nom }} 👋</h2><p>Bienvenue dans votre espace de gestion.</p></div><span>✦</span></section>
-<div class='stats'><article><small>Élèves inscrits</small><strong>{{ total }}</strong><em>Effectif total</em></article><article><small>Enseignants</small><strong>{{ enseignants }}</strong><em>Personnel enseignant</em></article><article><small>Recettes encaissées</small><strong>{{ recettes }} FC</strong><em>Paiements confirmés</em></article><article><small>Paiements payés</small><strong>{{ payes }}/{{ nb_paiements }}</strong><em>Suivi des frais</em></article></div>
+<div class='stats'><article><small>Élèves inscrits</small><strong>{{ total }}</strong><em>Effectif total</em></article><article><small>Enseignants</small><strong>{{ enseignants }}</strong><em>Personnel enseignant</em></article><article><small>Taux de réussite</small><strong>{{ reussite }}%</strong><em>Moyenne au seuil de 10/20</em></article><article><small>Recettes encaissées</small><strong>{{ recettes }} FC</strong><em>Paiements confirmés</em></article><article><small>Paiements payés</small><strong>{{ payes }}/{{ nb_paiements }}</strong><em>Suivi des frais</em></article></div>
 <section class='panel'><div class='panel-head'><div><h2>Dernières inscriptions</h2><p>Les dossiers récemment ajoutés</p></div><a class='btn outline' href='/eleves'>Tous les élèves</a></div>
 <div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Classe</th><th>Promotion</th><th></th></tr>{% for s in recents %}<tr><td><img class='mini' src='/static/uploads/{{ s.photo }}'> {{ s.nom }}</td><td>{{ s.matricule }}</td><td>{{ s.classe }}</td><td>{{ s.promotion }}</td><td><a href='/eleves/{{ s.id }}'>Détails →</a></td></tr>{% else %}<tr><td colspan='5'>Aucune inscription pour le moment.</td></tr>{% endfor %}</table></div></section>
 """
 DASH_USER = """
 <section class='hero'><div><small>MON ESPACE SCOLAIRE</small><h2>Bienvenue, {{ current_user.nom }}</h2><p>Retrouvez vos informations et vos résultats.</p></div><span>✦</span></section>
-{% if student %}<section class='panel profile'><img src='/static/uploads/{{ student.photo }}'><div><small>MATRICULE {{ student.matricule }}</small><h2>{{ student.nom }}</h2><p>{{ student.filiere }} · {{ student.classe }} · {{ student.promotion }}</p><b>Moyenne : {{ student.moyenne }}/20</b></div></section>{% else %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève. Contactez l'administration.</section>{% endif %}
+{% if student %}<section class='panel profile'><img src='/static/uploads/{{ student.photo }}'><div><small>MATRICULE {{ student.matricule }}</small><h2>{{ student.nom }}</h2><p>{{ student.filiere }} · {{ student.classe }} · {{ student.promotion }}</p><b>Moyenne : {{ student.moyenne }}/20</b><p>Absences enregistrées : <strong>{{ absences }}</strong></p></div></section>{% else %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève. Contactez l'administration.</section>{% endif %}
 <div class='quick'><a href='/notes'>▤ <b>Mes notes</b><small>Voir mes résultats</small></a><a href='/messages'>✉ <b>Messages</b><small>Contacter l'école</small></a><a href='/finances'>◈ <b>Paiements</b><small>Suivre mes frais</small></a></div>
 """
 STUDENTS = """
@@ -194,13 +204,17 @@ ACCOUNTS = """
 @login_required
 def dashboard():
     if current_user.role == "admin":
-        return page("Tableau de bord", DASH_ADMIN, total=Student.query.count(),
+        eleves_avec_notes = [s for s in Student.query.all() if s.notes]
+        seuil = float(os.getenv("PASS_MARK", "10"))
+        reussite = round(100 * sum(1 for s in eleves_avec_notes if s.moyenne >= seuil) / len(eleves_avec_notes), 1) if eleves_avec_notes else 0
+        return page("Tableau de bord", DASH_ADMIN, reussite=reussite,
             enseignants=User.query.filter_by(role="enseignant").count(),
             recettes=db.session.query(db.func.coalesce(db.func.sum(Payment.montant),0)).filter_by(statut="Payé").scalar(),
             payes=Payment.query.filter_by(statut="Payé").count(), nb_paiements=Payment.query.count(),
             recents=Student.query.order_by(Student.cree_le.desc()).limit(6).all())
     student = db.session.get(Student, current_user.student_id) if current_user.student_id else None
-    return page("Mon espace", DASH_USER, student=student)
+    absences = Attendance.query.filter_by(student_id=student.id, statut="Absent").count() if student else 0
+    return page("Mon espace", DASH_USER, student=student, absences=absences)
 
 @app.route("/connexion", methods=["GET","POST"])
 def connexion():
@@ -279,7 +293,7 @@ def eleve_supprimer(sid):
 @app.route("/notes", methods=["GET","POST"])
 @login_required
 def notes():
-    admin=current_user.role=="admin"
+    admin=current_user.role in ("admin","enseignant")
     if request.method=="POST":
         if not admin: abort(403)
         n=Grade(student_id=int(request.form["student_id"]),cours=request.form["cours"].strip(),
@@ -329,6 +343,27 @@ def horaire():
         db.session.add(c); db.session.commit(); flash("Cours ajouté.","success"); return redirect(url_for("horaire"))
     return page("Emploi du temps",SCHEDULE,admin=admin,cours=CourseSlot.query.order_by(CourseSlot.jour,CourseSlot.debut).all(),
                 jours=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"])
+
+
+@app.route("/presences", methods=["GET","POST"])
+@admin_only
+def presences():
+    if request.method == "POST":
+        record = Attendance(student_id=int(request.form["student_id"]),
+            jour=datetime.strptime(request.form["jour"], "%Y-%m-%d").date(),
+            statut=request.form["statut"], motif=request.form.get("motif","").strip())
+        db.session.add(record); db.session.commit()
+        flash("Présence enregistrée.", "success")
+        return redirect(url_for("presences"))
+    students = Student.query.order_by(Student.nom).all()
+    records = Attendance.query.order_by(Attendance.jour.desc(), Attendance.id.desc()).limit(150).all()
+    template = """
+    <section class='panel'><h2>Enregistrer une présence ou une absence</h2>
+    <form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label>
+    <label>Date<input type='date' name='jour' value='{{ today }}' required></label><label>Statut<select name='statut'><option>Présent</option><option>Absent</option><option>Retard</option></select></label><label>Motif<input name='motif'></label><button class='btn primary'>Enregistrer</button></form></section>
+    <section class='panel'><h2>Registre des présences</h2><div class='table-wrap'><table><tr><th>Date</th><th>Élève</th><th>Matricule</th><th>Statut</th><th>Motif</th></tr>{% for r in records %}<tr><td>{{ r.jour.strftime('%d/%m/%Y') }}</td><td>{{ r.eleve.nom }}</td><td>{{ r.eleve.matricule }}</td><td>{{ r.statut }}</td><td>{{ r.motif }}</td></tr>{% else %}<tr><td colspan='5'>Aucun relevé.</td></tr>{% endfor %}</table></div></section>
+    """
+    return page("Présences & absences", template, students=students, records=records, today=date.today().isoformat())
 
 @app.route("/comptes", methods=["GET","POST"])
 @admin_only
