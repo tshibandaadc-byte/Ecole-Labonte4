@@ -140,6 +140,39 @@ class FeePayment(db.Model):
     reference = db.Column(db.String(80), nullable=True)
     eleve = db.relationship("Student", backref=db.backref("versements_frais", lazy=True))
 
+
+class AdmissionApplication(db.Model):
+    __tablename__ = "admission_application"
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(160), nullable=False)
+    photo = db.Column(db.String(255), nullable=False)
+    faculty_id = db.Column(db.Integer, db.ForeignKey("faculty_catalog.id"), nullable=False)
+    program_id = db.Column(db.Integer, db.ForeignKey("program_catalog.id"), nullable=False)
+    classe = db.Column(db.String(80), nullable=False)
+    promotion = db.Column(db.String(80), nullable=False)
+    annee_academique = db.Column(db.String(20), nullable=False)
+    telephone_parent = db.Column(db.String(40), nullable=True)
+    statut = db.Column(db.String(20), nullable=False, default="En attente")
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=True)
+    cree_le = db.Column(db.DateTime, default=datetime.utcnow)
+    faculty = db.relationship("FacultyCatalog")
+    program = db.relationship("ProgramCatalog")
+    student = db.relationship("Student")
+
+
+class Enrollment(db.Model):
+    __tablename__ = "enrollment"
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    annee_academique = db.Column(db.String(20), nullable=False)
+    promotion = db.Column(db.String(80), nullable=False)
+    classe = db.Column(db.String(80), nullable=False)
+    statut = db.Column(db.String(20), nullable=False, default="Réinscrit")
+    date_inscription = db.Column(db.Date, nullable=False, default=date.today)
+    student = db.relationship("Student", backref=db.backref("inscriptions_annuelles", lazy=True))
+    __table_args__ = (db.UniqueConstraint("student_id", "annee_academique",
+                                           name="uq_enrollment_student_year"),)
+
 class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
@@ -199,6 +232,15 @@ def admin_only(fn):
 
 import re
 MATRICULE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{6}$")
+
+def generer_matricule(annee, code_faculte, code_filiere):
+    prefix = "{}-{}-{}-".format(int(annee), code_faculte, code_filiere)
+    dernier = Student.query.filter(Student.matricule.like(prefix + "%")).order_by(Student.matricule.desc()).first()
+    sequence = int(dernier.matricule.rsplit("-", 1)[1]) + 1 if dernier else 1
+    while Student.query.filter_by(matricule=prefix + "{:06d}".format(sequence)).first():
+        sequence += 1
+    return prefix + "{:06d}".format(sequence)
+
 def matricule_valide(value):
     return bool(MATRICULE_RE.fullmatch((value or "").strip()))
 
@@ -207,7 +249,7 @@ BASE = """
 <meta name='theme-color' content='#075b49'><link rel='manifest' href='/manifest.json'><link rel='stylesheet' href='/static/style.css'>
 <title>{{ title }} · École La Bonté</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
-<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
+<nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/admissions'>▣ Admissions</a><a href='/reinscriptions'>↻ Réinscriptions</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
 <a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/frais'>▣ Frais par classe</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
@@ -294,7 +336,7 @@ DETAIL = """
 <section class='panel'><div class='profile'><img src='/static/uploads/{{ s.photo }}'><div><small>MATRICULE {{ s.matricule }}</small><h2>{{ s.nom }}</h2><p>{{ s.faculte }} · {{ s.filiere }}</p><span class='pill'>{{ s.promotion }} · {{ s.classe }}</span></div><div class='average'><strong>{{ s.moyenne }}</strong><small>Moyenne / 20</small></div></div>
 <div class='details'><div><small>Faculté</small><b>{{ s.faculte }}</b></div><div><small>Filière</small><b>{{ s.filiere }}</b></div><div><small>Promotion</small><b>{{ s.promotion }}</b></div><div><small>Classe</small><b>{{ s.classe }}</b></div><div><small>Nombre de cours</small><b>{{ s.nombre_cours }}</b></div><div><small>Crédits</small><b>{{ s.credits }}</b></div></div>
 <h3>Notes de l'élève</h3><div class='table-wrap'><table><tr><th>Cours</th><th>Période</th><th>Note</th></tr>{% for n in s.notes %}<tr><td>{{ n.cours }}</td><td>{{ n.periode }}</td><td>{{ n.note }}/20</td></tr>{% else %}<tr><td colspan='3'>Aucune note saisie.</td></tr>{% endfor %}</table></div>
-<div class='actions'><a class='btn primary' href='/eleves/{{ s.id }}/carte'>Carte élève / QR code</a><a class='btn primary' href='/eleves/{{ s.id }}/modifier'>Modifier</a><form method='post' action='/eleves/{{ s.id }}/supprimer' onsubmit="return confirm('Supprimer ce dossier ?')"><button class='btn danger'>Supprimer</button></form></div></section>
+<div class='actions'><a class='btn primary' href='/eleves/{{ s.id }}/carte'>Carte élève / QR code</a><a class='btn outline' href='/eleves/{{ s.id }}/inscription.pdf'>Document d'inscription PDF</a><a class='btn primary' href='/eleves/{{ s.id }}/modifier'>Modifier</a><form method='post' action='/eleves/{{ s.id }}/supprimer' onsubmit="return confirm('Supprimer ce dossier ?')"><button class='btn danger'>Supprimer</button></form></div></section>
 """
 GRADES = """
 {% if admin %}<section class='panel'><h2>Ajouter une note</h2><form method='post' class='inline-form'><label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }}</option>{% endfor %}</select></label><label>Cours<input name='cours' required></label><label>Note / 20<input type='number' name='note' min='0' max='20' step='.01' required></label><label>Période<input name='periode' value='Trimestre 1'></label><button class='btn primary'>Enregistrer</button></form></section>
@@ -386,6 +428,36 @@ FEES = """
 <div class='table-wrap'><table><tr><th>Date</th><th>Élève</th><th>Frais</th><th>Montant</th><th>Référence</th><th>Reçu</th></tr>
 {% for v in versements %}<tr><td>{{ v.date_paiement.strftime('%d/%m/%Y') }}</td><td>{{ v.eleve.nom }}</td><td>{{ v.frais.libelle }}</td><td>{{ "{:,.0f}".format(v.montant).replace(",", " ") }} {{ v.frais.devise }}</td><td>{{ v.reference or '-' }}</td><td><a class='btn outline' href='/frais/versement/{{ v.id }}/recu.pdf'>PDF</a></td></tr>
 {% else %}<tr><td colspan='6'>Aucun versement enregistré.</td></tr>{% endfor %}</table></div></section>
+"""
+
+
+ADMISSION_FORM = """
+<section class='hero'><div><small>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h2>Demande d'admission</h2><p>Remplissez les informations pour soumettre un dossier à l'administration.</p></div><span>✦</span></section>
+<section class='panel'><form method='post' enctype='multipart/form-data' class='form-grid'>
+<label>Nom complet de l'élève *<input name='nom' required maxlength='160'></label>
+<label>Photo de l'élève *<input type='file' name='photo' accept='.jpg,.jpeg,.png,.webp' required></label>
+<label>Faculté *<select name='faculty_id' required><option value=''>Choisir</option>{% for f in faculties %}<option value='{{ f.id }}'>{{ f.code }} · {{ f.nom }}</option>{% endfor %}</select></label>
+<label>Filière *<select name='program_id' required><option value=''>Choisir</option>{% for f in faculties %}{% for p in f.filieres %}<option value='{{ p.id }}'>{{ f.nom }} — {{ p.code }} · {{ p.nom }}</option>{% endfor %}{% endfor %}</select></label>
+<label>Classe demandée *<input name='classe' required></label>
+<label>Promotion *<input name='promotion' required placeholder='Ex. 1re année'></label>
+<label>Année académique *<input name='annee_academique' required value='2026-2027'></label>
+<label>Téléphone du parent/tuteur<input name='telephone_parent' maxlength='40'></label>
+<div class='actions'><button class='btn primary'>Soumettre la demande</button></div>
+</form></section>
+"""
+ADMISSIONS = """
+<section class='panel'><h2>Dossiers d'admission</h2><div class='table-wrap'><table><tr><th>Date</th><th>Candidat</th><th>Faculté / Filière</th><th>Classe</th><th>Année</th><th>Statut</th><th>Action</th></tr>
+{% for a in demandes %}<tr><td>{{ a.cree_le.strftime('%d/%m/%Y') }}</td><td>{{ a.nom }}</td><td>{{ a.faculty.nom }} / {{ a.program.nom }}</td><td>{{ a.classe }}</td><td>{{ a.annee_academique }}</td><td>{{ a.statut }}</td><td>{% if a.statut == 'En attente' %}<form method='post' class='inline-form'><input type='hidden' name='application_id' value='{{ a.id }}'><button class='btn primary' name='action' value='accepter'>Accepter</button><button class='btn danger' name='action' value='refuser'>Refuser</button></form>{% elif a.student_id %}<a href='/eleves/{{ a.student_id }}/inscription.pdf'>Document PDF</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan='7'>Aucune demande.</td></tr>{% endfor %}</table></div></section>
+"""
+REENROLLMENTS = """
+<section class='panel'><h2>Enregistrer une réinscription</h2><form method='post' class='inline-form'>
+<label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.matricule }} · {{ s.classe }}</option>{% endfor %}</select></label>
+<label>Année académique<input name='annee_academique' required value='2026-2027'></label>
+<label>Promotion<input name='promotion' required></label><label>Nouvelle classe<input name='classe' required></label>
+<button class='btn primary'>Confirmer la réinscription</button></form></section>
+<section class='panel'><h2>Historique des inscriptions</h2><div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Année</th><th>Promotion</th><th>Classe</th><th>Date</th><th>Document</th></tr>
+{% for e in records %}<tr><td>{{ e.student.nom }}</td><td>{{ e.student.matricule }}</td><td>{{ e.annee_academique }}</td><td>{{ e.promotion }}</td><td>{{ e.classe }}</td><td>{{ e.date_inscription.strftime('%d/%m/%Y') }}</td><td><a href='/eleves/{{ e.student_id }}/inscription.pdf'>PDF</a></td></tr>{% else %}<tr><td colspan='7'>Aucune réinscription.</td></tr>{% endfor %}</table></div></section>
 """
 
 MESSAGES = """
@@ -1098,6 +1170,163 @@ def fee_payment_receipt(payment_id):
     buffer.seek(0)
     return send_file(buffer, mimetype="application/pdf", as_attachment=True,
                      download_name="recu-frais-{:06d}.pdf".format(versement.id))
+
+
+@app.route("/admission", methods=["GET", "POST"])
+def admission_public():
+    if request.method == "POST":
+        nom = request.form.get("nom", "").strip()
+        classe = request.form.get("classe", "").strip()
+        promotion = request.form.get("promotion", "").strip()
+        year = request.form.get("annee_academique", "").strip()
+        phone = request.form.get("telephone_parent", "").strip()
+        photo = request.files.get("photo")
+        try:
+            faculty_id = int(request.form.get("faculty_id", ""))
+            program_id = int(request.form.get("program_id", ""))
+        except (TypeError, ValueError):
+            abort(400)
+        faculty = db.session.get(FacultyCatalog, faculty_id)
+        program = db.session.get(ProgramCatalog, program_id)
+        if not all([nom, classe, promotion, year, photo, photo.filename, faculty, program]) or program.faculty_id != faculty.id or len(year) > 20:
+            flash("Vérifiez les champs obligatoires et la faculté/filière choisies.", "error")
+            return page("Demande d'admission", ADMISSION_FORM, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+        ext = photo.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ALLOWED:
+            flash("Format photo accepté : JPG, PNG ou WEBP.", "error")
+            return page("Demande d'admission", ADMISSION_FORM, faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+        filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
+        photo.save(UPLOADS / filename)
+        application = AdmissionApplication(nom=nom, photo=filename, faculty_id=faculty.id,
+            program_id=program.id, classe=classe, promotion=promotion, annee_academique=year,
+            telephone_parent=phone or None)
+        db.session.add(application)
+        db.session.commit()
+        flash("Demande reçue. L'administration étudiera votre dossier.", "success")
+        return redirect(url_for("admission_public"))
+    return page("Demande d'admission", ADMISSION_FORM,
+                faculties=FacultyCatalog.query.order_by(FacultyCatalog.code).all())
+
+
+@app.route("/admissions", methods=["GET", "POST"])
+@admin_only
+def admissions():
+    if request.method == "POST":
+        try:
+            application_id = int(request.form.get("application_id", ""))
+        except (TypeError, ValueError):
+            abort(400)
+        application = db.get_or_404(AdmissionApplication, application_id)
+        action = request.form.get("action")
+        if application.statut != "En attente" or action not in ("accepter", "refuser"):
+            abort(400)
+        if action == "refuser":
+            application.statut = "Refusée"
+            db.session.commit()
+            flash("Demande refusée.", "success")
+        else:
+            faculty, program = application.faculty, application.program
+            if not faculty or not program or program.faculty_id != faculty.id:
+                abort(400, description="Le catalogue faculté/filière de cette demande est invalide.")
+            try:
+                academic_year = int(application.annee_academique[:4])
+            except ValueError:
+                abort(400, description="L'année académique doit commencer par une année à quatre chiffres.")
+            matricule = generer_matricule(academic_year, faculty.code, program.code)
+            student = Student(matricule=matricule, annee_inscription=academic_year,
+                code_faculte=faculty.code, code_filiere=program.code, nom=application.nom,
+                photo=application.photo, faculte=faculty.nom, filiere=program.nom,
+                promotion=application.promotion, classe=application.classe)
+            db.session.add(student)
+            db.session.flush()
+            db.session.add(Enrollment(student_id=student.id, annee_academique=application.annee_academique,
+                promotion=application.promotion, classe=application.classe, statut="Admis"))
+            application.statut = "Acceptée"
+            application.student_id = student.id
+            db.session.commit()
+            flash("Admission acceptée. Matricule attribué : " + matricule, "success")
+        return redirect(url_for("admissions"))
+    return page("Admissions", ADMISSIONS,
+                demandes=AdmissionApplication.query.order_by(AdmissionApplication.cree_le.desc()).all())
+
+
+@app.route("/reinscriptions", methods=["GET", "POST"])
+@admin_only
+def reinscriptions():
+    if request.method == "POST":
+        try:
+            student_id = int(request.form.get("student_id", ""))
+        except (TypeError, ValueError):
+            abort(400)
+        student = db.session.get(Student, student_id)
+        year = request.form.get("annee_academique", "").strip()
+        promotion = request.form.get("promotion", "").strip()
+        classe = request.form.get("classe", "").strip()
+        if not student or not year or len(year) > 20 or not promotion or not classe:
+            abort(400)
+        if Enrollment.query.filter_by(student_id=student.id, annee_academique=year).first():
+            flash("Cet élève est déjà inscrit pour cette année académique.", "warning")
+        else:
+            enrollment = Enrollment(student_id=student.id, annee_academique=year,
+                                    promotion=promotion, classe=classe, statut="Réinscrit")
+            student.annee_inscription = int(year[:4]) if year[:4].isdigit() else student.annee_inscription
+            student.promotion, student.classe = promotion, classe
+            db.session.add(enrollment)
+            db.session.commit()
+            flash("Réinscription enregistrée.", "success")
+        return redirect(url_for("reinscriptions"))
+    return page("Réinscriptions", REENROLLMENTS,
+        students=Student.query.order_by(Student.nom).all(),
+        records=Enrollment.query.join(Student).order_by(Enrollment.date_inscription.desc(), Enrollment.id.desc()).all())
+
+
+@app.route("/eleves/<int:sid>/inscription.pdf")
+@admin_only
+def student_enrollment_pdf(sid):
+    student = db.get_or_404(Student, sid)
+    enrollment = Enrollment.query.filter_by(student_id=sid).order_by(Enrollment.date_inscription.desc(), Enrollment.id.desc()).first()
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    except ImportError:
+        abort(503, description="ReportLab est absent. Installez requirements.txt.")
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=22*mm, leftMargin=22*mm,
+                            topMargin=25*mm, bottomMargin=25*mm)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="EnrollmentTitle", parent=styles["Title"],
+                              textColor=colors.HexColor("#075b49"), alignment=1, fontSize=20))
+    year = enrollment.annee_academique if enrollment else str(student.annee_inscription or "")
+    rows = [
+        ["NOM COMPLET", student.nom], ["MATRICULE", student.matricule],
+        ["FACULTÉ", student.faculte], ["FILIÈRE", student.filiere],
+        ["PROMOTION", enrollment.promotion if enrollment else student.promotion],
+        ["CLASSE", enrollment.classe if enrollment else student.classe],
+        ["ANNÉE ACADÉMIQUE", year],
+        ["DATE DU DOCUMENT", date.today().strftime("%d/%m/%Y")]
+    ]
+    table = Table(rows, colWidths=[55*mm, 105*mm], rowHeights=[14*mm]*len(rows))
+    table.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(0,-1),colors.HexColor("#edf3ef")),
+        ("TEXTCOLOR",(0,0),(0,-1),colors.HexColor("#075b49")),
+        ("FONTNAME",(0,0),(0,-1),"Helvetica-Bold"),
+        ("GRID",(0,0),(-1,-1),.6,colors.HexColor("#c8d5cc")),
+        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),9),
+        ("FONTSIZE",(0,0),(-1,-1),10)
+    ]))
+    story = [Paragraph("ÉCOLE LA BONTÉ", styles["EnrollmentTitle"]),
+             Paragraph("LUBUMBASHI · ATTESTATION D'INSCRIPTION", styles["Heading2"]),
+             Spacer(1, 18), table, Spacer(1, 35),
+             Paragraph("La Direction", styles["Normal"]),
+             Spacer(1, 25),
+             Paragraph("Signature et cachet : ______________________________________", styles["Normal"])]
+    doc.build(story)
+    buffer.seek(0)
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True,
+                     download_name="inscription-" + re.sub(r"[^A-Za-z0-9_-]+", "-", student.matricule) + ".pdf")
 
 @app.route("/messages", methods=["GET","POST"])
 @login_required
