@@ -70,7 +70,7 @@ def register_teacher_followup(app, db, User, page):
                 arrival = request.form.get("heure_arrivee", "").strip() or None
                 departure = request.form.get("heure_depart", "").strip() or None
                 observation = request.form.get("observation", "").strip()[:255]
-                if status not in ("Présent", "Absent", "Retard", "Congé") or (arrival and not __import__("re").fullmatch(r"(?:[01]\\d|2[0-3]):[0-5]\\d", arrival)) or (departure and not __import__("re").fullmatch(r"(?:[01]\\d|2[0-3]):[0-5]\\d", departure)) or (arrival and departure and arrival >= departure):
+                if status not in ("Présent", "Absent", "Retard", "Congé") or (arrival and not __import__("re").fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", arrival)) or (departure and not __import__("re").fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", departure)) or (arrival and departure and arrival >= departure):
                     flash("Vérifiez le statut et les heures déclarées.", "error")
                 else:
                     row = TeacherAttendance.query.filter_by(teacher_id=current_user.id, jour=day).first()
