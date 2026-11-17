@@ -160,7 +160,7 @@ LOGIN = """
 """
 DASH_ADMIN = """
 <section class='hero'><div><small>VUE GÉNÉRALE</small><h2>Bonjour, {{ current_user.nom }} 👋</h2><p>Bienvenue dans votre espace de gestion.</p></div><span>✦</span></section>
-<div class='stats'><article><small>Élèves inscrits</small><strong>{{ total }}</strong><em>Effectif total</em></article><article><small>Enseignants</small><strong>{{ enseignants }}</strong><em>Personnel enseignant</em></article><article><small>Taux de réussite</small><strong>{{ reussite }}%</strong><em>Moyenne au seuil de 10/20</em></article><article><small>Recettes encaissées</small><strong>{{ recettes }} FC</strong><em>Paiements confirmés</em></article><article><small>Paiements payés</small><strong>{{ payes }}/{{ nb_paiements }}</strong><em>Suivi des frais</em></article></div>
+<div class='stats'><article><small>Élèves inscrits</small><strong>{{ total }}</strong><em>Effectif total</em></article><article><small>Enseignants</small><strong>{{ enseignants }}</strong><em>Personnel enseignant</em></article><article><small>Taux de réussite</small><strong>{{ reussite }}%</strong><em>Moyenne au seuil de 10/20</em></article><article><small>Recettes encaissées · CDF</small><strong>{{ recettes_cdf }} CDF</strong><em>Paiements confirmés</em></article><article><small>Recettes encaissées · USD</small><strong>{{ recettes_usd }} USD</strong><em>Paiements confirmés</em></article><article><small>Paiements payés</small><strong>{{ payes }}/{{ nb_paiements }}</strong><em>Suivi des frais</em></article></div>
 <section class='panel'><div class='panel-head'><div><h2>Dernières inscriptions</h2><p>Les dossiers récemment ajoutés</p></div><a class='btn outline' href='/eleves'>Tous les élèves</a></div>
 <div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Classe</th><th>Promotion</th><th></th></tr>{% for s in recents %}<tr><td><img class='mini' src='/static/uploads/{{ s.photo }}'> {{ s.nom }}</td><td>{{ s.matricule }}</td><td>{{ s.classe }}</td><td>{{ s.promotion }}</td><td><a href='/eleves/{{ s.id }}'>Détails →</a></td></tr>{% else %}<tr><td colspan='5'>Aucune inscription pour le moment.</td></tr>{% endfor %}</table></div></section>
 """
@@ -235,7 +235,8 @@ def dashboard():
         reussite = round(100 * sum(1 for s in eleves_avec_notes if s.moyenne >= seuil) / len(eleves_avec_notes), 1) if eleves_avec_notes else 0
         return page("Tableau de bord", DASH_ADMIN, reussite=reussite, total=Student.query.count(),
             enseignants=User.query.filter_by(role="enseignant").count(),
-            recettes=db.session.query(db.func.coalesce(db.func.sum(Payment.montant),0)).filter_by(statut="Payé").scalar(),
+            recettes_cdf=db.session.query(db.func.coalesce(db.func.sum(Payment.montant),0)).filter_by(statut="Payé",devise="CDF").scalar(),
+            recettes_usd=db.session.query(db.func.coalesce(db.func.sum(Payment.montant),0)).filter_by(statut="Payé",devise="USD").scalar(),
             payes=Payment.query.filter_by(statut="Payé").count(), nb_paiements=Payment.query.count(),
             recents=Student.query.order_by(Student.cree_le.desc()).limit(6).all())
     student = db.session.get(Student, current_user.student_id) if current_user.student_id else None
