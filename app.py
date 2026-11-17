@@ -114,7 +114,31 @@ class Payment(db.Model):
     devise = db.Column(db.String(3), nullable=False, default="CDF")
     statut = db.Column(db.String(20), default="En attente")
     date_paiement = db.Column(db.Date, nullable=True)
-    eleve = db.relationship("Student", backref=db.backref("paiements", lazy=True))
+
+
+class SchoolFee(db.Model):
+    __tablename__ = "school_fee"
+    id = db.Column(db.Integer, primary_key=True)
+    classe = db.Column(db.String(80), nullable=False)
+    annee_academique = db.Column(db.String(20), nullable=False)
+    libelle = db.Column(db.String(140), nullable=False)
+    montant = db.Column(db.Integer, nullable=False)
+    devise = db.Column(db.String(3), nullable=False, default="CDF")
+    cree_le = db.Column(db.DateTime, default=datetime.utcnow)
+    versements = db.relationship("FeePayment", cascade="all,delete-orphan", backref="frais")
+    __table_args__ = (db.UniqueConstraint("classe", "annee_academique", "libelle", "devise",
+                                           name="uq_school_fee_class_year_label_currency"),)
+
+
+class FeePayment(db.Model):
+    __tablename__ = "fee_payment"
+    id = db.Column(db.Integer, primary_key=True)
+    fee_id = db.Column(db.Integer, db.ForeignKey("school_fee.id"), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    montant = db.Column(db.Integer, nullable=False)
+    date_paiement = db.Column(db.Date, nullable=False, default=date.today)
+    reference = db.Column(db.String(80), nullable=True)
+    eleve = db.relationship("Student", backref=db.backref("versements_frais", lazy=True))
 
 class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -184,11 +208,11 @@ BASE = """
 <title>{{ title }} · École La Bonté</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
 <nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/facultes'>▦ Facultés & filières</a><a href='/historique'>▤ Historique académique</a><a href='/affectations'>♧ Affectations enseignants</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
-<a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
+<a href='/notes'>▤ Notes & résultats</a><a href='/bulletins'>▧ Bulletins</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/frais'>▣ Frais par classe</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
 {% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}
-{{ content|safe }}</main><nav class='bottom-nav'><a href='/'>Accueil</a>{% if current_user.role=='admin' %}<a href='/eleves'>Élèves</a>{% endif %}{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>Présences</a>{% endif %}<a href='/notes'>Notes</a><a href='/bulletins'>Bulletins</a><a href='/messages'>Messages</a><a href='/finances'>Finances</a></nav></div>
+{{ content|safe }}</main><nav class='bottom-nav'><a href='/'>Accueil</a>{% if current_user.role=='admin' %}<a href='/eleves'>Élèves</a>{% endif %}{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>Présences</a>{% endif %}<a href='/notes'>Notes</a><a href='/bulletins'>Bulletins</a><a href='/messages'>Messages</a><a href='/finances'>Finances</a><a href='/frais'>Frais</a></nav></div>
 {% else %}{% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}{{ content|safe }}{% endif %}
 <script src='/static/app.js'></script></body></html>
 """
@@ -217,12 +241,12 @@ DASH_TEACHER = """
 DASH_USER = """
 <section class='hero'><div><small>MON ESPACE SCOLAIRE</small><h2>Bienvenue, {{ current_user.nom }}</h2><p>Retrouvez vos informations et vos résultats.</p></div><span>✦</span></section>
 {% if student %}<section class='panel profile'><img src='/static/uploads/{{ student.photo }}'><div><small>MATRICULE {{ student.matricule }}</small><h2>{{ student.nom }}</h2><p>{{ student.filiere }} · {{ student.classe }} · {{ student.promotion }}</p><b>Moyenne : {{ student.moyenne }}/20</b><p>Absences enregistrées : <strong>{{ absences }}</strong></p></div></section>{% else %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève. Contactez l'administration.</section>{% endif %}
-<div class='quick'><a href='/notes'>▤ <b>Mes notes</b><small>Voir mes résultats</small></a><a href='/messages'>✉ <b>Messages</b><small>Contacter l'école</small></a><a href='/finances'>◈ <b>Paiements</b><small>Suivre mes frais</small></a></div>
+<div class='quick'><a href='/notes'>▤ <b>Mes notes</b><small>Voir mes résultats</small></a><a href='/messages'>✉ <b>Messages</b><small>Contacter l'école</small></a><a href='/finances'>◈ <b>Paiements</b><small>Suivre mes frais</small></a><a href='/frais'>▣ <b>Frais</b><small>Voir les soldes</small></a></div>
 """
 DASH_PARENT = """
 <section class='hero'><div><small>ESPACE PARENT</small><h2>Bienvenue, {{ current_user.nom }}</h2><p>Consultez les informations scolaires de vos enfants.</p></div><span>✦</span></section>
 {% for item in children %}<section class='panel profile'><img src='/static/uploads/{{ item.student.photo }}'><div><small>MATRICULE {{ item.student.matricule }}</small><h2>{{ item.student.nom }}</h2><p>{{ item.student.filiere }} · {{ item.student.classe }} · {{ item.student.promotion }}</p><b>Moyenne : {{ item.student.moyenne }}/20</b><p>Absences : <strong>{{ item.absences }}</strong> · Paiements : <strong>{{ item.payments }}</strong></p></div></section>{% else %}<section class='panel'>Aucun enfant n'est encore lié à ce compte. Contactez l'administration.</section>{% endfor %}
-<div class='quick'><a href='/notes'>▤ <b>Résultats</b><small>Notes des enfants</small></a><a href='/messages'>✉ <b>Messages</b><small>Contacter l'école</small></a><a href='/finances'>◈ <b>Paiements</b><small>Suivre les frais</small></a></div>
+<div class='quick'><a href='/notes'>▤ <b>Résultats</b><small>Notes des enfants</small></a><a href='/messages'>✉ <b>Messages</b><small>Contacter l'école</small></a><a href='/finances'>◈ <b>Paiements</b><small>Suivre les frais</small></a><a href='/frais'>▣ <b>Frais</b><small>Voir les soldes</small></a></div>
 """
 STUDENTS = """
 <section class='panel'><div class='panel-head'><div><h2>Liste des élèves</h2><p>{{ students|length }} dossier(s)</p></div><a class='btn primary' href='/eleves/nouveau'>＋ Ajouter un élève</a></div>
@@ -330,6 +354,37 @@ FINANCES = """
 {% for p in paiements %}<tr><td>{{ p.eleve.nom }}</td><td>{{ p.libelle }}</td><td>{{ "{:,.0f}".format(p.montant).replace(",", " ") }}</td><td>{{ p.devise }}</td><td>{{ p.statut }}</td><td><a class='btn outline' href='/finances/{{ p.id }}/recu.pdf'>PDF</a></td></tr>
 {% else %}<tr><td colspan='6'>Aucun paiement.</td></tr>{% endfor %}</table></div></section>
 """
+
+FEES = """
+{% if admin %}
+<section class='panel'><h2>Définir les frais d'une classe</h2>
+<form method='post' class='inline-form'>
+<input type='hidden' name='action' value='create_fee'>
+<label>Classe exacte<input name='classe' required placeholder='Ex. 3e A'></label>
+<label>Année académique<input name='annee_academique' required value='2026-2027'></label>
+<label>Intitulé<input name='libelle' required placeholder='Frais scolaires'></label>
+<label>Montant total<input type='number' name='montant' min='1' step='1' required></label>
+<label>Devise<select name='devise'><option value='CDF'>CDF</option><option value='USD'>USD</option></select></label>
+<button class='btn primary'>Créer les frais</button></form></section>
+<section class='panel'><h2>Enregistrer un versement</h2>
+<form method='post' class='inline-form'>
+<input type='hidden' name='action' value='record_payment'>
+<label>Élève<select name='student_id' required>{% for s in students %}<option value='{{ s.id }}'>{{ s.nom }} · {{ s.classe }}</option>{% endfor %}</select></label>
+<label>Frais à payer<select name='fee_id' required>{% for f in frais %}<option value='{{ f.id }}'>{{ f.classe }} · {{ f.libelle }} · {{ f.montant }} {{ f.devise }} · {{ f.annee_academique }}</option>{% endfor %}</select></label>
+<label>Montant du versement<input type='number' name='montant' min='1' step='1' required></label>
+<label>Référence (facultatif)<input name='reference'></label>
+<button class='btn primary'>Enregistrer le versement</button></form></section>
+{% endif %}
+<section class='panel'><h2>État des frais et soldes</h2>
+<div class='table-wrap'><table><tr><th>Élève</th><th>Classe</th><th>Année</th><th>Frais</th><th>Total dû</th><th>Payé</th><th>Reste</th><th>Devise</th></tr>
+{% for row in soldes %}<tr><td>{{ row.eleve.nom }}</td><td>{{ row.eleve.classe }}</td><td>{{ row.frais.annee_academique }}</td><td>{{ row.frais.libelle }}</td><td>{{ "{:,.0f}".format(row.total).replace(",", " ") }}</td><td>{{ "{:,.0f}".format(row.paye).replace(",", " ") }}</td><td><b>{{ "{:,.0f}".format(row.reste).replace(",", " ") }}</b></td><td>{{ row.frais.devise }}</td></tr>
+{% else %}<tr><td colspan='8'>Aucun frais applicable pour cette année académique.</td></tr>{% endfor %}</table></div></section>
+<section class='panel'><h2>Historique des versements</h2>
+<div class='table-wrap'><table><tr><th>Date</th><th>Élève</th><th>Frais</th><th>Montant</th><th>Référence</th><th>Reçu</th></tr>
+{% for v in versements %}<tr><td>{{ v.date_paiement.strftime('%d/%m/%Y') }}</td><td>{{ v.eleve.nom }}</td><td>{{ v.frais.libelle }}</td><td>{{ "{:,.0f}".format(v.montant).replace(",", " ") }} {{ v.frais.devise }}</td><td>{{ v.reference or '-' }}</td><td><a class='btn outline' href='/frais/versement/{{ v.id }}/recu.pdf'>PDF</a></td></tr>
+{% else %}<tr><td colspan='6'>Aucun versement enregistré.</td></tr>{% endfor %}</table></div></section>
+"""
+
 MESSAGES = """
 <section class='panel'><h2>Nouveau message</h2><form method='post' class='message-form'><label>Destinataire<select name='destinataire'><option>Tous</option><option>Administration</option><option>Enseignants</option><option>Parents</option><option>Élèves</option></select></label><label>Objet<input name='sujet' required></label><label>Message<textarea name='contenu' rows='4' required></textarea></label><button class='btn primary'>Envoyer</button></form></section>
 <section class='panel'><h2>Fil de communication</h2>{% for m in messages %}<article class='message'><b>{{ m.sujet }}</b><small>{{ m.auteur.nom }} · {{ m.destinataire }} · {{ m.cree_le.strftime('%d/%m/%Y %H:%M') }}</small><p>{{ m.contenu }}</p></article>{% else %}<p>Aucun message.</p>{% endfor %}</section>
@@ -901,6 +956,145 @@ def payment_receipt_pdf(payment_id):
     buffer.seek(0)
     return send_file(buffer, mimetype="application/pdf", as_attachment=True,
                      download_name="recu-REC-{:06d}.pdf".format(payment.id))
+
+
+@app.route("/frais", methods=["GET", "POST"])
+@login_required
+def school_fees():
+    admin = current_user.role == "admin"
+    if request.method == "POST":
+        if not admin: abort(403)
+        action = request.form.get("action", "")
+        if action == "create_fee":
+            classe = request.form.get("classe", "").strip()
+            year = request.form.get("annee_academique", "").strip()
+            label = request.form.get("libelle", "").strip()
+            currency = request.form.get("devise", "CDF").upper()
+            try:
+                amount = int(request.form.get("montant", ""))
+            except (TypeError, ValueError):
+                abort(400)
+            if not classe or not year or len(year) > 20 or not label or amount <= 0 or currency not in ("CDF", "USD"):
+                abort(400)
+            existing = SchoolFee.query.filter_by(classe=classe, annee_academique=year,
+                                                  libelle=label, devise=currency).first()
+            if existing:
+                flash("Ces frais existent déjà pour cette classe et cette année.", "warning")
+            else:
+                db.session.add(SchoolFee(classe=classe, annee_academique=year,
+                                         libelle=label, montant=amount, devise=currency))
+                db.session.commit()
+                flash("Frais de classe créés.", "success")
+            return redirect(url_for("school_fees"))
+        if action == "record_payment":
+            try:
+                student_id = int(request.form.get("student_id", ""))
+                fee_id = int(request.form.get("fee_id", ""))
+                amount = int(request.form.get("montant", ""))
+            except (TypeError, ValueError):
+                abort(400)
+            student = db.session.get(Student, student_id)
+            fee = db.session.get(SchoolFee, fee_id)
+            if not student or not fee or student.classe.strip().casefold() != fee.classe.strip().casefold() or amount <= 0:
+                abort(400, description="Élève, frais ou montant invalide.")
+            already_paid = db.session.query(db.func.coalesce(db.func.sum(FeePayment.montant), 0)).filter_by(fee_id=fee.id, student_id=student.id).scalar()
+            remaining = fee.montant - int(already_paid or 0)
+            if amount > remaining:
+                abort(400, description="Le versement dépasse le solde restant.")
+            versement = FeePayment(fee_id=fee.id, student_id=student.id, montant=amount,
+                                   reference=request.form.get("reference", "").strip()[:80] or None)
+            db.session.add(versement)
+            db.session.commit()
+            flash("Versement enregistré. Vous pouvez imprimer le reçu PDF.", "success")
+            return redirect(url_for("school_fees"))
+        abort(400)
+    year = request.args.get("annee", "2026-2027").strip()[:20]
+    if admin:
+        students = Student.query.order_by(Student.nom).all()
+        fees = SchoolFee.query.filter_by(annee_academique=year).order_by(SchoolFee.classe, SchoolFee.libelle).all()
+        payments_query = FeePayment.query.join(Student).join(SchoolFee).filter(SchoolFee.annee_academique == year)
+    elif current_user.role == "parent":
+        students = parent_children(current_user)
+        student_ids = [s.id for s in students]
+        fees = SchoolFee.query.filter_by(annee_academique=year).all()
+        payments_query = FeePayment.query.filter(FeePayment.student_id.in_(student_ids)) if student_ids else FeePayment.query.filter(db.false())
+    elif current_user.role == "eleve" and current_user.student_id:
+        student = db.session.get(Student, current_user.student_id)
+        students = [student] if student else []
+        fees = SchoolFee.query.filter_by(annee_academique=year).all()
+        payments_query = FeePayment.query.filter_by(student_id=current_user.student_id)
+    else:
+        abort(403)
+    soldes = []
+    for student in students:
+        for fee in fees:
+            if student.classe.strip().casefold() != fee.classe.strip().casefold():
+                continue
+            paid = db.session.query(db.func.coalesce(db.func.sum(FeePayment.montant), 0)).filter_by(
+                fee_id=fee.id, student_id=student.id).scalar()
+            paid = int(paid or 0)
+            soldes.append({"eleve": student, "frais": fee, "total": fee.montant,
+                           "paye": paid, "reste": max(0, fee.montant - paid)})
+    versements = payments_query.order_by(FeePayment.date_paiement.desc(), FeePayment.id.desc()).all()
+    return page("Frais par classe", FEES, admin=admin, students=students,
+                frais=fees, soldes=soldes, versements=versements)
+
+
+@app.route("/frais/versement/<int:payment_id>/recu.pdf")
+@login_required
+def fee_payment_receipt(payment_id):
+    versement = db.session.get(FeePayment, payment_id)
+    if not versement: abort(404)
+    if current_user.role == "admin":
+        pass
+    elif current_user.role == "parent":
+        if versement.student_id not in [child.id for child in parent_children(current_user)]: abort(403)
+    elif current_user.role == "eleve":
+        if current_user.student_id != versement.student_id: abort(403)
+    else:
+        abort(403)
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    except ImportError:
+        abort(503, description="ReportLab est absent. Installez requirements.txt.")
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=22*mm, leftMargin=22*mm,
+                            topMargin=25*mm, bottomMargin=25*mm)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="FeeReceiptTitle", parent=styles["Title"],
+                              textColor=colors.HexColor("#075b49"), alignment=1, fontSize=20))
+    rows = [
+        ["REÇU N°", "FRAIS-{:06d}".format(versement.id)],
+        ["DATE", versement.date_paiement.strftime("%d/%m/%Y")],
+        ["ÉLÈVE", versement.eleve.nom],
+        ["MATRICULE", versement.eleve.matricule],
+        ["CLASSE", versement.eleve.classe],
+        ["ANNÉE ACADÉMIQUE", versement.frais.annee_academique],
+        ["MOTIF", versement.frais.libelle],
+        ["VERSEMENT REÇU", "{:,.0f} {}".format(versement.montant, versement.frais.devise).replace(",", " ")],
+        ["RÉFÉRENCE", versement.reference or "-"]
+    ]
+    table = Table(rows, colWidths=[55*mm, 105*mm], rowHeights=[13*mm]*len(rows))
+    table.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(0,-1),colors.HexColor("#edf3ef")),
+        ("TEXTCOLOR",(0,0),(0,-1),colors.HexColor("#075b49")),
+        ("FONTNAME",(0,0),(0,-1),"Helvetica-Bold"),
+        ("GRID",(0,0),(-1,-1),.6,colors.HexColor("#c8d5cc")),
+        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),9),
+        ("FONTSIZE",(0,0),(-1,-1),10)
+    ]))
+    story = [Paragraph("ÉCOLE LA BONTÉ", styles["FeeReceiptTitle"]),
+             Paragraph("LUBUMBASHI · REÇU DE VERSEMENT", styles["Heading2"]),
+             Spacer(1, 16), table, Spacer(1, 35),
+             Paragraph("Signature et cachet de la caisse : ______________________________", styles["Normal"])]
+    doc.build(story)
+    buffer.seek(0)
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True,
+                     download_name="recu-frais-{:06d}.pdf".format(versement.id))
 
 @app.route("/messages", methods=["GET","POST"])
 @login_required
