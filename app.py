@@ -139,11 +139,11 @@ BASE = """
 <title>{{ title }} · École La Bonté</title></head><body>
 {% if current_user.is_authenticated %}<div class='layout'><aside class='side'><a class='brand' href='/'> <b>✦</b><span>ÉCOLE LA BONTÉ<small>ESPACE SCOLAIRE</small></span></a>
 <nav><a href='/'>▦ Tableau de bord</a>{% if current_user.role=='admin' %}<a href='/eleves'>♙ Élèves</a><a href='/comptes'>♧ Comptes utilisateurs</a>{% endif %}<a href='/assistant'>✧ Assistant scolaire</a>
-<a href='/notes'>▤ Notes & résultats</a>{% if current_user.role=='admin' %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
+<a href='/notes'>▤ Notes & résultats</a>{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>◷ Présences</a>{% endif %}<a href='/messages'>✉ Messages</a><a href='/finances'>◈ Finances</a><a href='/horaire'>▦ Emploi du temps</a></nav>
 <div class='side-bottom'><b>{{ current_user.nom }}</b><small>{{ current_user.role|capitalize }}</small><a href='/deconnexion'>↪ Déconnexion</a></div></aside>
 <main class='main'><header><div><small class='kicker'>ÉCOLE LA BONTÉ · LUBUMBASHI</small><h1>{{ title }}</h1></div><span class='avatar'>{{ current_user.nom[:1] }}</span></header>
 {% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}
-{{ content|safe }}</main><nav class='bottom-nav'><a href='/'>Accueil</a>{% if current_user.role=='admin' %}<a href='/eleves'>Élèves</a>{% endif %}<a href='/notes'>Notes</a><a href='/messages'>Messages</a><a href='/finances'>Finances</a></nav></div>
+{{ content|safe }}</main><nav class='bottom-nav'><a href='/'>Accueil</a>{% if current_user.role=='admin' %}<a href='/eleves'>Élèves</a>{% endif %}{% if current_user.role in ['admin','enseignant'] %}<a href='/presences'>Présences</a>{% endif %}<a href='/notes'>Notes</a><a href='/messages'>Messages</a><a href='/finances'>Finances</a></nav></div>
 {% else %}{% with alerts=get_flashed_messages(with_categories=true) %}{% for cat,msg in alerts %}<div class='alert {{ cat }}'>{{ msg }}</div>{% endfor %}{% endwith %}{{ content|safe }}{% endif %}
 <script src='/static/app.js'></script></body></html>
 """
@@ -180,7 +180,7 @@ STUDENTS = """
 <div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Faculté / Filière</th><th>Classe</th><th>Moyenne</th><th></th></tr>{% for s in students %}<tr><td><img class='mini' src='/static/uploads/{{ s.photo }}'> {{ s.nom }}</td><td><span class='pill'>{{ s.matricule }}</span></td><td>{{ s.faculte }}<small class='sub'>{{ s.filiere }}</small></td><td>{{ s.classe }}</td><td>{{ s.moyenne }}/20</td><td><a href='/eleves/{{ s.id }}'>Ouvrir →</a></td></tr>{% else %}<tr><td colspan='6'>Aucun élève trouvé.</td></tr>{% endfor %}</table></div></section>
 """
 STUDENT_FORM = """
-<section class='panel'><h2>{{ 'Modifier le dossier' if s else 'Nouvelle inscription' }}</h2><p>La photo est obligatoire à la création. Le matricule est attribué automatiquement.</p>
+<section class='panel'><h2>{{ 'Modifier le dossier' if s else 'Nouvelle inscription' }}</h2><p>La photo est obligatoire à la création. Le matricule de 14 chiffres est saisi manuellement par la Direction.</p>
 <form method='post' enctype='multipart/form-data' class='form-grid'>
 <label class='photo'>Photo de profil {% if not s %}*{% endif %}<input type='file' name='photo' accept='.jpg,.jpeg,.png,.webp' {% if not s %}required{% endif %}><img id='preview' src='{{ ("/static/uploads/"+s.photo) if s else "" }}' {% if not s %}hidden{% endif %}></label>
 <label>Nom complet *<input name='nom' required value='{{ s.nom if s else "" }}'></label>
