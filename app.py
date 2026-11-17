@@ -968,7 +968,7 @@ def notes():
         elif not student or not cours:
             abort(400)
         year = assignment.annee_academique if is_teacher else request.form.get("annee_academique", "").strip()
-        if not re.fullmatch(r"\\d{4}-\\d{4}", year): abort(400)
+        if not re.fullmatch(r"\d{4}-\d{4}", year): abort(400)
         n=Grade(student_id=student.id,cours=cours,note=note,
             periode=request.form.get("periode","Trimestre 1").strip() or "Trimestre 1",
             annee_academique=year, promotion=student.promotion)
@@ -1446,7 +1446,7 @@ def admission_public():
         phone = request.form.get("telephone_parent", "").strip()
         photo = request.files.get("photo")
         if (not nom or len(nom) > 160 or not classe_valide(niveau, classe)
-                or not option_valide(niveau, option) or not re.fullmatch(r"\\d{4}-\\d{4}", year)
+                or not option_valide(niveau, option) or not re.fullmatch(r"\d{4}-\d{4}", year)
                 or not photo or not photo.filename):
             flash("Vérifiez le cycle, la classe, l'option et les champs obligatoires.", "error")
             return page("Demande d'admission", ADMISSION_FORM, **context)
@@ -1543,7 +1543,7 @@ def reinscriptions():
         classe = request.form.get("classe", "").strip()
         niveau = request.form.get("niveau_scolaire", "").strip()
         option = request.form.get("option_scolaire", "").strip()
-        if (not student or not re.fullmatch(r"\\d{4}-\\d{4}", year)
+        if (not student or not re.fullmatch(r"\d{4}-\d{4}", year)
                 or not promotion or not classe):
             abort(400)
         if niveau and (not classe_valide(niveau, classe) or not option_valide(niveau, option)):
