@@ -1033,11 +1033,16 @@ def notes():
             abort(400)
         year = assignment.annee_academique if is_teacher else request.form.get("annee_academique", "").strip()
         if not re.fullmatch(r"\d{4}-\d{4}", year): abort(400)
+        periode=request.form.get("periode","Trimestre 1").strip() or "Trimestre 1"
+        if len(periode) > 60: abort(400)
         n=Grade(student_id=student.id,cours=cours,note=note,
-            periode=request.form.get("periode","Trimestre 1").strip() or "Trimestre 1",
-            annee_academique=year, promotion=student.promotion)
-        db.session.add(n); db.session.commit()
-        flash("Note enregistrée.", "success")
+            periode=periode, annee_academique=year, promotion=student.promotion)
+        db.session.add(n)
+        db.session.flush()
+        journaliser("Enregistrement note", "Grade",
+            f"id={n.id}; élève={student.nom}; classe={student.classe}; cours={cours}; note={note:g}/20; période={periode}; année={year}")
+        db.session.commit()
+        flash("Note enregistrée et ajoutée au journal d'audit.", "success")
         return redirect(url_for("notes"))
     query=Grade.query.join(Student)
     students=[]
