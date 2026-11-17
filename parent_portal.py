@@ -45,7 +45,8 @@ def register_parent_portal(app, db, Student, Grade, Attendance, SchoolFee,
                 ).scalar()
                 remaining = max(0, fee.montant - int(paid or 0))
                 if remaining:
-                    unpaid.append({"label": fee.libelle, "remaining": remaining, "currency": fee.devise})
+                    unpaid.append({"label": fee.libelle, "remaining": remaining, "currency": fee.devise,
+                                    "due_date": fee.date_echeance})
             cards.append({"student": child, "average": average,
                           "absences": recent_absences, "unpaid": unpaid})
 
@@ -72,9 +73,9 @@ def register_parent_portal(app, db, Student, Grade, Attendance, SchoolFee,
         <h3>Absences récentes</h3><div class='table-wrap'><table><tr><th>Date</th><th>Statut</th><th>Motif</th></tr>
         {% for a in selected_card.absences %}<tr><td>{{ a.jour.strftime('%d/%m/%Y') }}</td><td>{{ a.statut }}</td><td>{{ a.motif or '—' }}</td></tr>
         {% else %}<tr><td colspan='3'>Aucune absence enregistrée récemment.</td></tr>{% endfor %}</table></div>
-        <h3>Soldes des frais scolaires</h3><div class='table-wrap'><table><tr><th>Frais</th><th>Solde</th></tr>
-        {% for fee in selected_card.unpaid %}<tr><td>{{ fee.label }}</td><td>{{ '{:,.0f}'.format(fee.remaining).replace(',', ' ') }} {{ fee.currency }}</td></tr>
-        {% else %}<tr><td colspan='2'>Aucun solde impayé trouvé pour les frais configurés.</td></tr>{% endfor %}</table></div>
+        <h3>Soldes des frais scolaires</h3><div class='table-wrap'><table><tr><th>Frais</th><th>Échéance</th><th>Solde</th></tr>
+        {% for fee in selected_card.unpaid %}<tr><td>{{ fee.label }}</td><td>{{ fee.due_date.strftime('%d/%m/%Y') if fee.due_date else 'Non définie' }}</td><td>{{ '{:,.0f}'.format(fee.remaining).replace(',', ' ') }} {{ fee.currency }}</td></tr>
+        {% else %}<tr><td colspan='3'>Aucun solde impayé trouvé pour les frais configurés.</td></tr>{% endfor %}</table></div>
         </section>{% elif children|length == 1 %}<p>Ouvrez le dossier de votre enfant ci-dessous.</p>{% endif %}
         {% if children|length > 1 and not selected %}<section class='panel'><h2>Mes enfants</h2><div class='table-wrap'><table>
         <tr><th>Élève</th><th>Classe</th><th>Matricule</th><th>Dossier</th></tr>
