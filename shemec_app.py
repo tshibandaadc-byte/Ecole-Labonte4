@@ -863,6 +863,18 @@ def eleve_nouveau():
         option_scolaire=request.form.get("option_scolaire","Aucune").strip() or "Aucune"
         if niveau_scolaire and (not classe_valide(niveau_scolaire, classe_scolaire) or not option_valide(niveau_scolaire, option_scolaire)):
             abort(400)
+        nom_eleve = request.form.get("nom", "").strip()
+        promotion_eleve = request.form.get("promotion", "").strip()
+        try:
+            annee = int(request.form.get("annee_inscription", ""))
+            nombre_cours = int(request.form.get("nombre_cours") or 0)
+            credits = int(request.form.get("credits") or 0)
+        except (ValueError, TypeError):
+            flash("Année, nombre de cours et crédits doivent être des nombres valides.", "error")
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
+        if not nom_eleve or not promotion_eleve or not classe_scolaire or not 2000 <= annee <= 2100 or nombre_cours < 0 or credits < 0:
+            flash("Complétez le nom, la promotion et la classe. Vérifiez aussi l'année, les cours et les crédits.", "error")
+            return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRES)
         photo = request.files.get("photo")
         if not photo or not photo.filename:
             flash("La photo de profil est obligatoire.", "error")
@@ -873,7 +885,7 @@ def eleve_nouveau():
             return page("Nouvelle inscription", STUDENT_FORM, s=None, matricule="", faculties=[], niveaux=NIVEAUX_SCOLAIRES, options_secondaire=OPTIONS_SECONDAIRE)
         filename = datetime.utcnow().strftime("%Y%m%d%H%M%S%f") + "_" + secure_filename(photo.filename)
         photo.save(UPLOADS / filename)
-        annee=int(request.form["annee_inscription"]); cf=request.form["code_faculte"].strip(); cfi=request.form["code_filiere"].strip()
+        cf=request.form.get("code_faculte", "").strip(); cfi=request.form.get("code_filiere", "").strip()
         matricule=generer_matricule(annee,cf,cfi)
         if not matricule_valide(matricule) or Student.query.filter_by(matricule=matricule).first() or matricule.split("-")[:3] != [str(annee),cf,cfi]:
             (UPLOADS / filename).unlink(missing_ok=True)
@@ -892,14 +904,16 @@ def eleve_nouveau():
         else:
             faculte_name=request.form.get("faculte","").strip()
             filiere_name=request.form.get("filiere","").strip()
-        s = Student(matricule=matricule, annee_inscription=annee, code_faculte=cf, code_filiere=cfi, nom=request.form["nom"].strip(), photo=filename,
+        s = Student(matricule=matricule, annee_inscription=annee, code_faculte=cf, code_filiere=cfi, nom=nom_eleve, photo=filename,
             faculte=faculte_name, filiere=filiere_name,
-            promotion=request.form["promotion"].strip(), classe=classe_scolaire,
+            promotion=promotion_eleve, classe=classe_scolaire,
             niveau_scolaire=niveau_scolaire or None, option_scolaire=option_scolaire if niveau_scolaire == "Secondaire" else None,
-            nombre_cours=int(request.form.get("nombre_cours") or 0), credits=int(request.form.get("credits") or 0))
+            nombre_cours=nombre_cours, credits=credits)
         db.session.add(s); db.session.flush()
         db.session.add(Enrollment(student_id=s.id, annee_academique=str(annee) + "-" + str(annee + 1),
             promotion=s.promotion, classe=s.classe, statut="Inscrit"))
+        journaliser("Inscription nouvel élève", "Student",
+            f"id={s.id}; nom={s.nom}; matricule={s.matricule}; classe={s.classe}; année={annee}-{annee + 1}")
         db.session.commit()
         flash("Inscription enregistrée. Matricule attribué : " + s.matricule, "success")
         return redirect(url_for("eleve_detail", sid=s.id))
