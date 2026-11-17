@@ -199,6 +199,7 @@ class Message(db.Model):
 
 class CourseSlot(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    annee_academique = db.Column(db.String(20), nullable=True, index=True)
     classe = db.Column(db.String(80), nullable=False)
     jour = db.Column(db.String(20), nullable=False)
     debut = db.Column(db.String(5), nullable=False)
@@ -1640,15 +1641,28 @@ def messages():
 @app.route("/horaire", methods=["GET","POST"])
 @login_required
 def horaire():
-    admin=current_user.role=="admin"
-    if request.method=="POST":
+    admin = current_user.role == "admin"
+    active_year = AcademicYear.query.filter_by(active=True).first()
+    year = request.args.get("annee", "").strip() or (active_year.label if active_year else "2026-2027")
+    if not re.fullmatch(r"\d{4}-\d{4}", year):
+        abort(400)
+    if request.method == "POST":
         if not admin: abort(403)
-        c=CourseSlot(classe=request.form["classe"].strip(),jour=request.form["jour"],debut=request.form["debut"],
-            fin=request.form["fin"],cours=request.form["cours"].strip(),enseignant=request.form.get("enseignant","").strip())
-        db.session.add(c); db.session.commit(); flash("Cours ajouté.","success"); return redirect(url_for("horaire"))
-    return page("Emploi du temps",SCHEDULE,admin=admin,cours=CourseSlot.query.order_by(CourseSlot.jour,CourseSlot.debut).all(),
-                jours=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"])
-
+        flash("Utilisez Planning des cours pour créer un cours lié à une affectation et à une année scolaire.", "warning")
+        return redirect(url_for("planning_cours"))
+    query = CourseSlot.query.filter_by(annee_academique=year)
+    if current_user.role == "enseignant":
+        classes = [r[0] for r in db.session.query(TeacherAssignment.classe).filter_by(teacher_id=current_user.id, annee_academique=year).distinct().all()]
+        query = query.filter(CourseSlot.classe.in_(classes)) if classes else query.filter(db.false())
+    elif current_user.role == "eleve":
+        own = db.session.get(Student, current_user.student_id) if current_user.student_id else None
+        query = query.filter_by(classe=own.classe) if own else query.filter(db.false())
+    elif current_user.role == "parent":
+        classes = sorted({child.classe for child in parent_children(current_user) if child.classe})
+        query = query.filter(CourseSlot.classe.in_(classes)) if classes else query.filter(db.false())
+    elif not admin:
+        abort(403)
+    return page("Emploi du temps", SCHEDULE, admin=admin, cours=query.order_by(CourseSlot.jour, CourseSlot.debut).all(), jours=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"], annee=year)
 
 @app.route("/presences", methods=["GET","POST"])
 @login_required
@@ -2476,7 +2490,8 @@ with app.app_context():
         "student": {"annee_inscription":"INTEGER","code_faculte":"VARCHAR(2)","code_filiere":"VARCHAR(2)","niveau_scolaire":"VARCHAR(30)","option_scolaire":"VARCHAR(80)"},
         "admission_application": {"niveau_scolaire":"VARCHAR(30)","option_scolaire":"VARCHAR(80)"},
         "grade": {"annee_academique":"VARCHAR(20) DEFAULT '2026-2027'","promotion":"VARCHAR(80) DEFAULT ''"},
-        "payment": {"devise":"VARCHAR(3) NOT NULL DEFAULT 'CDF'"}
+        "payment": {"devise":"VARCHAR(3) NOT NULL DEFAULT 'CDF'"},
+        "course_slot": {"annee_academique":"VARCHAR(20)"}
     }.items():
         existing={col["name"] for col in insp.get_columns(table)}
         for col, definition in columns.items():
