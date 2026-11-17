@@ -12,6 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from markupsafe import escape
 from school_structure import NIVEAUX_SCOLAIRES, OPTIONS_SECONDAIRE, classe_valide, option_valide
+from assessment import appreciation, classement_classe, decision_passage, moyenne_notes
 
 ROOT = Path(__file__).resolve().parent
 UPLOADS = ROOT / "static" / "uploads"
@@ -606,7 +607,7 @@ BULLETIN = """
   <div class='bulletin-head'><div><small class='kicker'>ÉCOLE SHEMEC · LUBUMBASHI</small><h2>Bulletin scolaire</h2><p>Année académique {{ group.annee }} · {{ group.periode }}</p></div><div class='bulletin-mark'>✦</div></div>
   <div class='bulletin-meta'><div><small>ÉLÈVE</small><b>{{ student.nom }}</b></div><div><small>MATRICULE</small><b>{{ student.matricule }}</b></div><div><small>CYCLE SCOLAIRE</small><b>{{ student.niveau_scolaire or student.faculte }}{% if student.option_scolaire %} · {{ student.option_scolaire }}{% endif %}</b></div><div><small>ANNÉE / CLASSE</small><b>{{ student.promotion }} · {{ student.classe }}</b></div></div>
   <div class='table-wrap'><table><tr><th>Matière / Cours</th><th>Note obtenue</th><th>Maximum</th></tr>{% for n in group.notes %}<tr><td>{{ n.cours }}</td><td><b>{{ '%.2f'|format(n.note) }}</b></td><td>20</td></tr>{% endfor %}</table></div>
-  <div class='bulletin-summary'><div><small>Moyenne générale</small><strong>{{ '%.2f'|format(group.moyenne) }}/20</strong></div><div><small>Appréciation</small><strong>{{ group.appreciation }}</strong></div><div><small>Résultat</small><strong>{{ 'Admis' if group.moyenne >= 10 else 'À renforcer' }}</strong></div></div>
+  <div class='bulletin-summary'><div><small>Moyenne générale</small><strong>{{ '%.2f'|format(group.moyenne) }}/20</strong></div><div><small>Appréciation</small><strong>{{ group.appreciation }}</strong></div><div><small>Résultat</small><strong>{{ group.decision }}</strong></div><div><small>Classement de la classe</small><strong>{% if group.rang %}{{ group.rang }}e / {{ group.effectif }}{% else %}Non classé{% endif %}</strong></div></div>
   <div class='signature-row'><div>Le titulaire</div><div>La Direction</div></div>
 </section>
 {% else %}<section class='panel'>Aucune note n'est encore disponible pour cet élève.</section>{% endfor %}
@@ -1044,23 +1045,24 @@ def bulletins():
             key = (grade.annee_academique or "Non précisée", grade.periode or "Période non précisée")
             grouped.setdefault(key, []).append(grade)
         for (annee, periode), rows in grouped.items():
-            moyenne = sum(row.note for row in rows) / len(rows)
-            if moyenne >= 16:
-                appreciation = "Très bien"
-            elif moyenne >= 14:
-                appreciation = "Bien"
-            elif moyenne >= 12:
-                appreciation = "Assez bien"
-            elif moyenne >= 10:
-                appreciation = "Passable"
-            else:
-                appreciation = "Insuffisant"
+            moyenne = moyenne_notes(row.note for row in rows)
+            classe_results = db.session.query(Grade.student_id, Grade.note).join(Student).filter(
+                Student.classe == student.classe,
+                Grade.annee_academique == annee,
+                Grade.periode == periode,
+                Grade.promotion == student.promotion
+            ).all()
+            classement = classement_classe(classe_results, student.id)
+            seuil = float(os.getenv("PASS_MARK", "10"))
             groups.append({
                 "annee": annee,
                 "periode": periode,
                 "notes": rows,
                 "moyenne": moyenne,
-                "appreciation": appreciation
+                "appreciation": appreciation(moyenne),
+                "decision": decision_passage(moyenne, seuil),
+                "rang": classement["rang"],
+                "effectif": classement["effectif"]
             })
     return page("Bulletins scolaires", BULLETIN, admin=is_admin,
                 parent=is_parent, students=students, student=student, groups=groups)
