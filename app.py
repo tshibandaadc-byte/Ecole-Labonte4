@@ -148,6 +148,11 @@ DASH_ADMIN = """
 <section class='panel'><div class='panel-head'><div><h2>Dernières inscriptions</h2><p>Les dossiers récemment ajoutés</p></div><a class='btn outline' href='/eleves'>Tous les élèves</a></div>
 <div class='table-wrap'><table><tr><th>Élève</th><th>Matricule</th><th>Classe</th><th>Promotion</th><th></th></tr>{% for s in recents %}<tr><td><img class='mini' src='/static/uploads/{{ s.photo }}'> {{ s.nom }}</td><td>{{ s.matricule }}</td><td>{{ s.classe }}</td><td>{{ s.promotion }}</td><td><a href='/eleves/{{ s.id }}'>Détails →</a></td></tr>{% else %}<tr><td colspan='5'>Aucune inscription pour le moment.</td></tr>{% endfor %}</table></div></section>
 """
+DASH_TEACHER = """
+<section class='hero'><div><small>ESPACE ENSEIGNANT</small><h2>Bonjour, {{ current_user.nom }}</h2><p>Gérez les notes et consultez les horaires de cours.</p></div><span>✦</span></section>
+<div class='quick'><a href='/notes'>▤ <b>Saisir les notes</b><small>Évaluer les élèves</small></a><a href='/horaire'>▦ <b>Emploi du temps</b><small>Voir les horaires</small></a><a href='/messages'>✉ <b>Messages</b><small>Communiquer avec l'école</small></a></div>
+<section class='panel'><h2>Vos outils pédagogiques</h2><p>Utilisez les notes pour enregistrer les résultats des élèves et l'emploi du temps pour consulter les cours planifiés.</p></section>
+"""
 DASH_USER = """
 <section class='hero'><div><small>MON ESPACE SCOLAIRE</small><h2>Bienvenue, {{ current_user.nom }}</h2><p>Retrouvez vos informations et vos résultats.</p></div><span>✦</span></section>
 {% if student %}<section class='panel profile'><img src='/static/uploads/{{ student.photo }}'><div><small>MATRICULE {{ student.matricule }}</small><h2>{{ student.nom }}</h2><p>{{ student.filiere }} · {{ student.classe }} · {{ student.promotion }}</p><b>Moyenne : {{ student.moyenne }}/20</b><p>Absences enregistrées : <strong>{{ absences }}</strong></p></div></section>{% else %}<section class='panel'>Votre compte n'est pas encore lié à un dossier élève. Contactez l'administration.</section>{% endif %}
@@ -203,6 +208,8 @@ ACCOUNTS = """
 @app.route("/")
 @login_required
 def dashboard():
+    if current_user.role == "enseignant":
+        return page("Espace enseignant", DASH_TEACHER)
     if current_user.role == "admin":
         eleves_avec_notes = [s for s in Student.query.all() if s.notes]
         seuil = float(os.getenv("PASS_MARK", "10"))
@@ -287,7 +294,7 @@ def eleve_modifier(sid):
 @app.route("/eleves/<int:sid>/supprimer", methods=["POST"])
 @admin_only
 def eleve_supprimer(sid):
-    s=db.get_or_404(Student,sid); db.session.delete(s); db.session.commit()
+    s=db.get_or_404(Student,sid); User.query.filter_by(student_id=sid).update({User.student_id: None}); db.session.delete(s); db.session.commit()
     flash("Dossier supprimé.","success"); return redirect(url_for("eleves"))
 
 @app.route("/notes", methods=["GET","POST"])
@@ -330,7 +337,13 @@ def messages():
         m=Message(user_id=current_user.id,destinataire=request.form["destinataire"],
                   sujet=request.form["sujet"].strip(),contenu=request.form["contenu"].strip())
         db.session.add(m); db.session.commit(); flash("Message envoyé.","success"); return redirect(url_for("messages"))
-    return page("Messages",MESSAGES,messages=Message.query.order_by(Message.cree_le.desc()).all())
+    if current_user.role == "admin":
+        visibles = Message.query.order_by(Message.cree_le.desc()).all()
+    else:
+        destinataire = {"enseignant":"Enseignants", "parent":"Parents", "eleve":"Élèves"}.get(current_user.role, "Tous")
+        visibles = Message.query.filter(db.or_(Message.user_id == current_user.id,
+            Message.destinataire.in_(["Tous", destinataire]))).order_by(Message.cree_le.desc()).all()
+    return page("Messages",MESSAGES,messages=visibles)
 
 @app.route("/horaire", methods=["GET","POST"])
 @login_required
